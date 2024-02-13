@@ -1,0 +1,11 @@
+Debug*/
+*mk
+*txt
+Resources/
+Libs/
+!CMakeLists.txt
+.cmake_dirty
+.vs
+*vcxproj*
+*.cmake
+*CMakeFiles/
