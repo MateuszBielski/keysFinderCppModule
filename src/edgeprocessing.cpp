@@ -65,6 +65,25 @@ vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
     }
     return chunks;
 }
+bool EdgeProcessing::IsBlack(const Vec3b& p)
+{
+    if(
+        p[0] <= maxBalckLevel &&
+        p[1] <= maxBalckLevel &&
+        p[2] <= maxBalckLevel
+    ) return true;
+    return false;
+}
+bool EdgeProcessing::IsWhite(const Vec3b& p)
+{
+    if(
+        p[0] >= minWhiteLevel &&
+        p[1] >= minWhiteLevel &&
+        p[2] >= minWhiteLevel
+    )return true;
+    return false;
+}
+
 vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChunks)
 {
     vector<Rect> bwChunks;
@@ -79,60 +98,144 @@ vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChun
             continue;
         }
         unsigned white = 0, black = 0;
-        for(unsigned h = 0 ; h < chunk.rows ; h++) {
-            for(unsigned w = 0 ; w < chunk.cols ; w++) {
-//                auto pix = chunk.at<Vec3b>(h * chunk.cols + w);
-                auto pix = chunk.at<Vec3b>(h,w);
-                if(
-                    pix[0] <= maxBalckLevel &&
-                    pix[1] <= maxBalckLevel &&
-                    pix[2] <= maxBalckLevel
-                )black++;
-                if(
-                    pix[0] >= minWhiteLevel &&
-                    pix[1] >= minWhiteLevel &&
-                    pix[2] >= minWhiteLevel
-                )white++;
+
+        chunk.forEach<Vec3b>([ &, this](Vec3b &p, const int * position) -> void {
+            if(IsBlack(p)) {
+                black++;
+                return;
             }
-        }
+            if(IsWhite(p))white++;
+        });
         if(black && white)bwChunks.push_back(ch);
     }
 
     return bwChunks;
 }
+void EdgeProcessing::TrimToImageBorder(Rect& rect)
+{
+    if(rect.x < 0)rect.x = 0;
+    if(rect.y < 0)rect.y = 0;
+    int rightExceed = rect.x + rect.width - src.cols;
+    int downExceed =  rect.y + rect.height - src.rows;
+    if(rightExceed > 0)rect.width -= rightExceed;
+    if(downExceed > 0)rect.height -= downExceed;
+    if(rect.width < 0) rect.width = 0;
+    if(rect.height < 0) rect.height = 0;
+}
+void EdgeProcessing::ForEachPixOfSourceImageInsideRect(Rect& rect, std::function<void(Vec3b&, const int *)> const& Func)
+{
+    unsigned x, y;
+    int pos[2];
+    for(y = 0; y < rect.height ; y++) {
+        pos[1] = rect.y + y;
+        for(x = 0; x < rect.width ; x++) {
+            pos[0] = rect.x + x;
+            auto& pix = src.at<Vec3b>(pos[1], pos[0]);
+            Func(pix, pos);
+        }
+
+    }
+}
+vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& selected)
+{
+    vector<Rect> centeredChunks;
+    unsigned numChunks = 0;
+    for(auto& sel : selected) {
+        Rect rect {sel};
+        bool needMorePrecision = true;
+        bool lessThanSecondCycle = true;
+        bool useNewRectangle;
+        unsigned numWhite = 0, numBlack = 0;
+        unsigned prevNumWhite = 0;
+        unsigned prevNumBlack = 0;
+        ushort numCycles = 0;
+        int blackWhiteDiff;
+        int prevBlackWhiteDiff;
+        float blackWhiteEqualAccuracyCurrent;
+        if(numChunks == 79) {
+            int r = 1;
+        }
+        while(lessThanSecondCycle || needMorePrecision ) {
+            useNewRectangle = false;
+            float centerWhite_x = 0.0, centerWhite_y = 0.0,
+                  centerBlack_x = 0.0, centerBlack_y = 0.0;
+            numWhite = 0;
+            numBlack = 0;
+            auto AddBlacksAddWhites = [ &, this](Vec3b &p, const int * absolutePosition) -> void {
+                if(IsBlack(p)) {
+                    ++numBlack;
+                    centerBlack_x += absolutePosition[0];
+                    centerBlack_y += absolutePosition[1];
+                    return;
+                }
+                if(IsWhite(p)) {
+                    ++numWhite;
+                    centerWhite_x += absolutePosition[0];
+                    centerWhite_y += absolutePosition[1];
+                }
+            };
+            ForEachPixOfSourceImageInsideRect(rect,AddBlacksAddWhites);
+
+            if(!numWhite || !numBlack)break;
+
+            centerWhite_x /= numWhite;
+            centerWhite_y /= numWhite;
+            centerBlack_x /= numBlack;
+            centerBlack_y /= numBlack;
+            float center_x = (centerWhite_x + centerBlack_x)/2.0;
+            float center_y = (centerWhite_y + centerBlack_y)/2.0;
+            float new_xf = center_x - sel.width / 2;
+            float new_yf = center_y - sel.height / 2;
+            int new_x = static_cast<int>(round(new_xf));
+            int new_y = static_cast<int>(round(new_yf));
+            Rect newRect {new_x, new_y, sel.width, sel.height};
+            TrimToImageBorder(newRect);
+
+            ++numCycles;
+            lessThanSecondCycle = numCycles < 2 ? true : false;
+
+
+            blackWhiteDiff = abs((int)numBlack - (int)numWhite);
+            prevBlackWhiteDiff = abs((int)prevNumBlack - (int)prevNumWhite);
+            if(blackWhiteDiff > prevBlackWhiteDiff && !lessThanSecondCycle) {
+                break;
+            }
+            blackWhiteEqualAccuracyCurrent = (float)blackWhiteDiff / (numBlack + numWhite);
+            if(blackWhiteEqualAccuracyCurrent < blackWhiteEqualAccuracy) {
+                needMorePrecision = false;
+                useNewRectangle = true;
+            }
+            if(numCycles > 10) {
+                
+                break;
+            }
+
+            rect = newRect;
+            prevNumWhite = numWhite;
+            prevNumBlack = numBlack;
+
+        }
+        numChunks++;
+        if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
+    }
+    return centeredChunks;
+}
 void EdgeProcessing::ShowSelectedChunks(vector<Rect>& selected)
 {
-    auto redColored(src);
+    Mat redColored = src.clone();
     unsigned x, y, num = 0;
     for(auto& sel : selected) {
-        
-        bool isBlack = true;
-        for(y = sel.y; y < (sel.y + sel.height) ; y++ )
-        {
-            for(x = sel.x ; x < (sel.x + sel.width) ; x++)
-            {
-                
-                auto& pix = src.at<Vec3b>(y,x);
-//                Vec3b pixTemp = pix;
-                if(
-                    pix[0] <= maxBalckLevel &&
-                    pix[1] <= maxBalckLevel &&
-                    pix[2] <= maxBalckLevel
-                )isBlack = true;
-                if(
-                    pix[0] >= minWhiteLevel &&
-                    pix[1] >= minWhiteLevel &&
-                    pix[2] >= minWhiteLevel
-                )isBlack = false;
-                if(isBlack){
-                    pix[2] = 190;
-                }else{
-                    pix[0] = 40;
-                    pix[1] = 40;
-                }
+        Mat chunk {redColored, sel};
+
+        chunk.forEach<Vec3b>([ &, this](Vec3b &pix, const int * position) -> void {
+            if(IsBlack(pix)) {
+                pix[2] = 190;
+            } else {
+                pix[0] = 40;
+                pix[1] = 40;
             }
-        }
-        num++;
+            num++;
+        });
     }
     imshow("original Image", redColored);
     waitKey(0);
@@ -143,8 +246,10 @@ void EdgeProcessing::FindEdgePixels()
     vector<Rect> chunks = DivideImageIntoSquareChunks();
 
     vector<Rect> chunksOnEdge = SelectWithBlackAndWhitePixels(chunks);
+
     ShowSelectedChunks(chunksOnEdge);
-//    vector<Point>
+    vector<Rect> chunksAccurateOnEdge = FindBlackEqualWhiteInNeighborhood(chunksOnEdge);
+    ShowSelectedChunks(chunksAccurateOnEdge);
     auto chunksSize = chunks.size();
     auto chunksOnEdgeSize = chunksOnEdge.size();
 

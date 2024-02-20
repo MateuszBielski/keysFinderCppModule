@@ -19,6 +19,9 @@ int main(int argc, char **argv)
     try {
         ep.maxBalckLevel = r.Get<uchar>("section1", "maxBalckLevel");
     }catch(std::exception& e) {}
+    try {
+        ep.blackWhiteEqualAccuracy = r.Get<float>("section1", "blackWhiteEqualAccuracy");
+    }catch(std::exception& e) {}
     
     ep.FindEdgePixels();
     ep.FindBreakingPoints();
