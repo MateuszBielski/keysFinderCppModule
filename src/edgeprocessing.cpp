@@ -136,6 +136,7 @@ void EdgeProcessing::ForEachPixOfSourceImageInsideRect(Rect& rect, std::function
 
     }
 }
+
 vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& selected)
 {
     vector<Rect> centeredChunks;
@@ -145,14 +146,16 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
         bool needMorePrecision = true;
         bool lessThanSecondCycle = true;
         bool useNewRectangle;
-        unsigned numWhite = 0, numBlack = 0;
-        unsigned prevNumWhite = 0;
-        unsigned prevNumBlack = 0;
+        int numWhite = 0, numBlack = 0;
+        int prevCenter_x = round(sel.x + sel.width / 2.0);
+        int prevCenter_y = round(sel.y + sel.height / 2.0);
+        int centerDiff_x = 10;
+        int centerDiff_y = 10;
         ushort numCycles = 0;
         int blackWhiteDiff;
         int prevBlackWhiteDiff;
-        float blackWhiteEqualAccuracyCurrent;
-        if(numChunks == 79) {
+        float blackWhiteRatioCurrent;
+        if(numChunks == 4) {
             int r = 1;
         }
         while(lessThanSecondCycle || needMorePrecision ) {
@@ -188,32 +191,28 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
             float new_yf = center_y - sel.height / 2;
             int new_x = static_cast<int>(round(new_xf));
             int new_y = static_cast<int>(round(new_yf));
-            Rect newRect {new_x, new_y, sel.width, sel.height};
-            TrimToImageBorder(newRect);
-
-            ++numCycles;
-            lessThanSecondCycle = numCycles < 2 ? true : false;
-
-
-            blackWhiteDiff = abs((int)numBlack - (int)numWhite);
-            prevBlackWhiteDiff = abs((int)prevNumBlack - (int)prevNumWhite);
-            if(blackWhiteDiff > prevBlackWhiteDiff && !lessThanSecondCycle) {
-                break;
-            }
-            blackWhiteEqualAccuracyCurrent = (float)blackWhiteDiff / (numBlack + numWhite);
-            if(blackWhiteEqualAccuracyCurrent < blackWhiteEqualAccuracy) {
+            centerDiff_x = abs(round(center_x) - prevCenter_x);
+            centerDiff_y = abs(round(center_y) - prevCenter_y);
+            if(centerDiff_x < 2 && centerDiff_y < 2){
                 needMorePrecision = false;
                 useNewRectangle = true;
             }
-            if(numCycles > 10) {
-                
+            blackWhiteDiff = abs(numBlack - numWhite);
+            blackWhiteRatioCurrent = (float)blackWhiteDiff / (numBlack + numWhite);
+            if(!needMorePrecision && blackWhiteRatioCurrent > blackWhiteRatioMax)
+            {
+                useNewRectangle = false;
                 break;
             }
+            Rect newRect {new_x, new_y, sel.width, sel.height};
+            TrimToImageBorder(newRect);
 
             rect = newRect;
-            prevNumWhite = numWhite;
-            prevNumBlack = numBlack;
-
+            prevCenter_x = center_x;
+            prevCenter_y = center_y;
+            
+            lessThanSecondCycle = numCycles < 2 ? true : false;
+            ++numCycles;
         }
         numChunks++;
         if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
@@ -258,4 +257,101 @@ void EdgeProcessing::FindEdgePixels()
 }
 void EdgeProcessing::FindBreakingPoints()
 {
+}
+
+vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhoodOld(vector<Rect>& selected)
+{
+    vector<Rect> centeredChunks;
+//    unsigned numChunks = 0;
+//    for(auto& sel : selected) {
+//        Rect rect {sel};
+//        bool needMorePrecision = true;
+//        bool lessThanSecondCycle = true;
+//        bool useNewRectangle;
+//        unsigned numWhite = 0, numBlack = 0;
+//        unsigned prevNumWhite = 0;
+//        unsigned prevNumBlack = 0;
+//        int prevCenter_x = round(sel.x + sel.width / 2.0);
+//        int prevCenter_y = round(sel.y + sel.height / 2.0);
+//        int centerDiff_x = 10;
+//        int centerDiff_y = 10;
+//        ushort numCycles = 0;
+//        int blackWhiteDiff;
+//        int prevBlackWhiteDiff;
+//        float blackWhiteEqualAccuracyCurrent;
+//        if(numChunks == 4) {
+//            int r = 1;
+//        }
+//        while(lessThanSecondCycle || needMorePrecision ) {
+//            useNewRectangle = false;
+//            float centerWhite_x = 0.0, centerWhite_y = 0.0,
+//                  centerBlack_x = 0.0, centerBlack_y = 0.0;
+//            numWhite = 0;
+//            numBlack = 0;
+//            auto AddBlacksAddWhites = [ &, this](Vec3b &p, const int * absolutePosition) -> void {
+//                if(IsBlack(p)) {
+//                    ++numBlack;
+//                    centerBlack_x += absolutePosition[0];
+//                    centerBlack_y += absolutePosition[1];
+//                    return;
+//                }
+//                if(IsWhite(p)) {
+//                    ++numWhite;
+//                    centerWhite_x += absolutePosition[0];
+//                    centerWhite_y += absolutePosition[1];
+//                }
+//            };
+//            ForEachPixOfSourceImageInsideRect(rect,AddBlacksAddWhites);
+//
+//            if(!numWhite || !numBlack)break;
+//
+//            centerWhite_x /= numWhite;
+//            centerWhite_y /= numWhite;
+//            centerBlack_x /= numBlack;
+//            centerBlack_y /= numBlack;
+//            float center_x = (centerWhite_x + centerBlack_x)/2.0;
+//            float center_y = (centerWhite_y + centerBlack_y)/2.0;
+//            float new_xf = center_x - sel.width / 2;
+//            float new_yf = center_y - sel.height / 2;
+//            int new_x = static_cast<int>(round(new_xf));
+//            int new_y = static_cast<int>(round(new_yf));
+//            centerDiff_x = abs(round(center_x) - prevCenter_x);
+//            centerDiff_y = abs(round(center_y) - prevCenter_y);
+//            if(centerDiff_x < 2 && centerDiff_y < 2){
+//                needMorePrecision = false;
+//                useNewRectangle = true;
+//            }
+//            Rect newRect {new_x, new_y, sel.width, sel.height};
+//            TrimToImageBorder(newRect);
+//
+//            ++numCycles;
+//            lessThanSecondCycle = numCycles < 2 ? true : false;
+//
+//
+//            blackWhiteDiff = abs((int)numBlack - (int)numWhite);
+//            prevBlackWhiteDiff = abs((int)prevNumBlack - (int)prevNumWhite);
+//            if(blackWhiteDiff > prevBlackWhiteDiff && !lessThanSecondCycle) {
+//                useNewRectangle = false;
+//                break;
+//            }
+//            blackWhiteEqualAccuracyCurrent = (float)blackWhiteDiff / (numBlack + numWhite);
+//            if(blackWhiteEqualAccuracyCurrent < blackWhiteEqualAccuracy) {
+//                needMorePrecision = false;
+//                useNewRectangle = true;
+//            }
+//            if(numCycles > 10) {
+//                
+//                break;
+//            }
+//
+//            rect = newRect;
+//            prevNumWhite = numWhite;
+//            prevNumBlack = numBlack;
+//            prevCenter_x = center_x;
+//            prevCenter_y = center_y;
+//        }
+//        numChunks++;
+//        if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
+//    }
+    return centeredChunks;
 }

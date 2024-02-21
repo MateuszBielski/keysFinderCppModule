@@ -21,6 +21,7 @@ private:
     vector<Rect> DivideImageIntoSquareChunks();
     vector<Rect> SelectWithBlackAndWhitePixels(vector<Rect>& );
     vector<Rect> FindBlackEqualWhiteInNeighborhood(vector<Rect>& );
+    vector<Rect> FindBlackEqualWhiteInNeighborhoodOld(vector<Rect>& );
     void ShowSelectedChunks(vector<Rect>& );
     void TrimToImageBorder(Rect& );
     void ForEachPixOfSourceImageInsideRect(Rect& , std::function<void(Vec3b&, const int *)> const& lambda);
@@ -30,7 +31,7 @@ public:
     unsigned edgeDetectInitialRadius = 10;
     uchar minWhiteLevel = 255;
     uchar maxBalckLevel = 0;
-    float blackWhiteEqualAccuracy = 0.25;
+    float blackWhiteRatioMax = 0.25;
     
     void LoadImageBW(string );
     void FindEdgePixels();

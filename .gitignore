@@ -4,6 +4,7 @@ Debug*/
 Resources/
 Libs/
 !CMakeLists.txt
+!CMakeListsExternalProj.txt
 .cmake_dirty
 .vs
 *vcxproj*
