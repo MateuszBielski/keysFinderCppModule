@@ -9,9 +9,32 @@ namespace fs = std::filesystem;
 using namespace cv;
 using std::cout;
 
+void EdgeProcessing::LoadParameters(inih::INIReader& r)
+{
+    
+    try {
+        edgeDetectInitialRadius = r.Get<unsigned>("section1", "edgeDetectRadius");
+    }catch(std::exception& e) {}
+    try {
+        minWhiteLevel = r.Get<uchar>("section1", "minWhiteLevel");
+    }catch(std::exception& e) {}
+    try {
+        maxBalckLevel = r.Get<uchar>("section1", "maxBalckLevel");
+    }catch(std::exception& e) {}
+    try {
+        blackWhiteRatioMax = r.Get<float>("section1", "blackWhiteRatioMax");
+    }catch(std::exception& e) {}
+    try{
+        otherChannelsRatioMax = r.Get<float>("section1", "otherChannelsRatioMax");
+    }catch(std::exception& e) {}
+}
 void EdgeProcessing::LoadImageBW(string fileName)
 {
-    if(!fs::exists(fileName)) return;
+    if(!fs::exists(fileName)) 
+    {
+        src = CreateGhost();
+        return;
+    }
 
     src = imread(fileName,IMREAD_COLOR);
 //    uchar * dataBegin = src.data;
@@ -21,6 +44,23 @@ void EdgeProcessing::LoadImageBW(string fileName)
 //    ushort nuChannels = src.channels();
 //    size_t nuPixels = dataSize / nuChannels;
 
+}
+void EdgeProcessing::MakeBlackAndWhiteIfGreenBackground()
+{
+	unsigned green = 0;
+    src.forEach<Vec3b>([&,this](Vec3b &pix, const int * position) -> void {
+        if(IsGreen(pix)){
+            green++;
+        }
+    });
+    if(!green)return;
+    src.forEach<Vec3b>([this](Vec3b &pix, const int * position) -> void {
+            if(IsGreen(pix)){
+                MakeWhite(pix);
+            }else{
+                MakeBlack(pix);
+            }
+        });
 }
 vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
 {
@@ -65,25 +105,6 @@ vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
     }
     return chunks;
 }
-bool EdgeProcessing::IsBlack(const Vec3b& p)
-{
-    if(
-        p[0] <= maxBalckLevel &&
-        p[1] <= maxBalckLevel &&
-        p[2] <= maxBalckLevel
-    ) return true;
-    return false;
-}
-bool EdgeProcessing::IsWhite(const Vec3b& p)
-{
-    if(
-        p[0] >= minWhiteLevel &&
-        p[1] >= minWhiteLevel &&
-        p[2] >= minWhiteLevel
-    )return true;
-    return false;
-}
-
 vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChunks)
 {
     vector<Rect> bwChunks;
@@ -242,116 +263,71 @@ void EdgeProcessing::ShowSelectedChunks(vector<Rect>& selected)
 
 void EdgeProcessing::FindEdgePixels()
 {
+    MakeBlackAndWhiteIfGreenBackground();
+    imshow("black White Image", src);
+    waitKey(0);
     vector<Rect> chunks = DivideImageIntoSquareChunks();
-
     vector<Rect> chunksOnEdge = SelectWithBlackAndWhitePixels(chunks);
-
-    ShowSelectedChunks(chunksOnEdge);
+//    ShowSelectedChunks(chunksOnEdge);
     vector<Rect> chunksAccurateOnEdge = FindBlackEqualWhiteInNeighborhood(chunksOnEdge);
     ShowSelectedChunks(chunksAccurateOnEdge);
     auto chunksSize = chunks.size();
     auto chunksOnEdgeSize = chunksOnEdge.size();
 
-    //w obrębie przesuwać
-//    Point square[edgeDetectInitialRadius * edgeDetectInitialRadius];
 }
 void EdgeProcessing::FindBreakingPoints()
 {
 }
 
-vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhoodOld(vector<Rect>& selected)
+bool EdgeProcessing::IsBlack(const Vec3b& p)
 {
-    vector<Rect> centeredChunks;
-//    unsigned numChunks = 0;
-//    for(auto& sel : selected) {
-//        Rect rect {sel};
-//        bool needMorePrecision = true;
-//        bool lessThanSecondCycle = true;
-//        bool useNewRectangle;
-//        unsigned numWhite = 0, numBlack = 0;
-//        unsigned prevNumWhite = 0;
-//        unsigned prevNumBlack = 0;
-//        int prevCenter_x = round(sel.x + sel.width / 2.0);
-//        int prevCenter_y = round(sel.y + sel.height / 2.0);
-//        int centerDiff_x = 10;
-//        int centerDiff_y = 10;
-//        ushort numCycles = 0;
-//        int blackWhiteDiff;
-//        int prevBlackWhiteDiff;
-//        float blackWhiteEqualAccuracyCurrent;
-//        if(numChunks == 4) {
-//            int r = 1;
-//        }
-//        while(lessThanSecondCycle || needMorePrecision ) {
-//            useNewRectangle = false;
-//            float centerWhite_x = 0.0, centerWhite_y = 0.0,
-//                  centerBlack_x = 0.0, centerBlack_y = 0.0;
-//            numWhite = 0;
-//            numBlack = 0;
-//            auto AddBlacksAddWhites = [ &, this](Vec3b &p, const int * absolutePosition) -> void {
-//                if(IsBlack(p)) {
-//                    ++numBlack;
-//                    centerBlack_x += absolutePosition[0];
-//                    centerBlack_y += absolutePosition[1];
-//                    return;
-//                }
-//                if(IsWhite(p)) {
-//                    ++numWhite;
-//                    centerWhite_x += absolutePosition[0];
-//                    centerWhite_y += absolutePosition[1];
-//                }
-//            };
-//            ForEachPixOfSourceImageInsideRect(rect,AddBlacksAddWhites);
-//
-//            if(!numWhite || !numBlack)break;
-//
-//            centerWhite_x /= numWhite;
-//            centerWhite_y /= numWhite;
-//            centerBlack_x /= numBlack;
-//            centerBlack_y /= numBlack;
-//            float center_x = (centerWhite_x + centerBlack_x)/2.0;
-//            float center_y = (centerWhite_y + centerBlack_y)/2.0;
-//            float new_xf = center_x - sel.width / 2;
-//            float new_yf = center_y - sel.height / 2;
-//            int new_x = static_cast<int>(round(new_xf));
-//            int new_y = static_cast<int>(round(new_yf));
-//            centerDiff_x = abs(round(center_x) - prevCenter_x);
-//            centerDiff_y = abs(round(center_y) - prevCenter_y);
-//            if(centerDiff_x < 2 && centerDiff_y < 2){
-//                needMorePrecision = false;
-//                useNewRectangle = true;
-//            }
-//            Rect newRect {new_x, new_y, sel.width, sel.height};
-//            TrimToImageBorder(newRect);
-//
-//            ++numCycles;
-//            lessThanSecondCycle = numCycles < 2 ? true : false;
-//
-//
-//            blackWhiteDiff = abs((int)numBlack - (int)numWhite);
-//            prevBlackWhiteDiff = abs((int)prevNumBlack - (int)prevNumWhite);
-//            if(blackWhiteDiff > prevBlackWhiteDiff && !lessThanSecondCycle) {
-//                useNewRectangle = false;
-//                break;
-//            }
-//            blackWhiteEqualAccuracyCurrent = (float)blackWhiteDiff / (numBlack + numWhite);
-//            if(blackWhiteEqualAccuracyCurrent < blackWhiteEqualAccuracy) {
-//                needMorePrecision = false;
-//                useNewRectangle = true;
-//            }
-//            if(numCycles > 10) {
-//                
-//                break;
-//            }
-//
-//            rect = newRect;
-//            prevNumWhite = numWhite;
-//            prevNumBlack = numBlack;
-//            prevCenter_x = center_x;
-//            prevCenter_y = center_y;
-//        }
-//        numChunks++;
-//        if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
-//    }
-    return centeredChunks;
+    if(
+        p[0] <= maxBalckLevel &&
+        p[1] <= maxBalckLevel &&
+        p[2] <= maxBalckLevel
+    ) return true;
+    return false;
+}
+bool EdgeProcessing::IsWhite(const Vec3b& p)
+{
+    if(
+        p[0] >= minWhiteLevel &&
+        p[1] >= minWhiteLevel &&
+        p[2] >= minWhiteLevel
+    )return true;
+    return false;
+}
+bool EdgeProcessing::IsGreen(const Vec3b& p)
+{
+    if(!p[1])return false;
+    float redDivGreen = (float)p[2] / p[1];
+    float blueDivGreen = (float)p[0] / p[1];
+    if(
+        redDivGreen < otherChannelsRatioMax &&
+        blueDivGreen < otherChannelsRatioMax 
+    )return true;
+    return false;
+}
+void EdgeProcessing::MakeWhite(Vec3b& p)
+{
+	p[0] = 255;
+	p[1] = 255;
+	p[2] = 255;
+}
+void EdgeProcessing::MakeBlack(Vec3b& p)
+{
+	p[0] = 0;
+	p[1] = 0;
+	p[2] = 0;
+}
+Mat EdgeProcessing::CreateGhost()
+{
+	Mat ghost{100,100,CV_8UC3};
+    uchar randColor[3];//not inited make random
+    ghost.forEach<Vec3b>([&, this](Vec3b &pix, const int * position) -> void {
+        pix[0] = randColor[0];
+        pix[1] = randColor[1];
+        pix[2] = randColor[2];
+    });
+    return ghost;
 }
