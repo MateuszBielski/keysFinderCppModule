@@ -13,7 +13,7 @@
 
 
 using std::string, std::vector;
-using cv::Mat, cv::Rect, cv::Vec3b;
+using cv::Mat, cv::Rect, cv::Vec3b, cv::Vec2i;
 
 class EdgeProcessing
 {
@@ -29,7 +29,10 @@ private:
     vector<Rect> DivideImageIntoSquareChunks();
     vector<Rect> SelectWithBlackAndWhitePixels(vector<Rect>& );
     vector<Rect> FindBlackEqualWhiteInNeighborhood(vector<Rect>& );
+    vector<Vec2i> GetCentresOfRectangles(vector<Rect>& );
+    vector<Vec2i> ArrangeInOrder(vector<Vec2i>& );
     void ShowSelectedChunks(vector<Rect>& );
+    void ShowLinesBetweenPoints(vector<Vec2i>& );
     void TrimToImageBorder(Rect& );
     void ForEachPixOfSourceImageInsideRect(Rect& , std::function<void(Vec3b&, const int *)> const& lambda);
     bool IsBlack(const Vec3b &p);

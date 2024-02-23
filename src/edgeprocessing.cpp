@@ -11,27 +11,26 @@ using std::cout;
 
 void EdgeProcessing::LoadParameters(inih::INIReader& r)
 {
-    
+
     try {
         edgeDetectInitialRadius = r.Get<unsigned>("section1", "edgeDetectRadius");
-    }catch(std::exception& e) {}
+    } catch(std::exception& e) {}
     try {
         minWhiteLevel = r.Get<uchar>("section1", "minWhiteLevel");
-    }catch(std::exception& e) {}
+    } catch(std::exception& e) {}
     try {
         maxBalckLevel = r.Get<uchar>("section1", "maxBalckLevel");
-    }catch(std::exception& e) {}
+    } catch(std::exception& e) {}
     try {
         blackWhiteRatioMax = r.Get<float>("section1", "blackWhiteRatioMax");
-    }catch(std::exception& e) {}
-    try{
+    } catch(std::exception& e) {}
+    try {
         otherChannelsRatioMax = r.Get<float>("section1", "otherChannelsRatioMax");
-    }catch(std::exception& e) {}
+    } catch(std::exception& e) {}
 }
 void EdgeProcessing::LoadImageBW(string fileName)
 {
-    if(!fs::exists(fileName)) 
-    {
+    if(!fs::exists(fileName)) {
         src = CreateGhost();
         return;
     }
@@ -47,20 +46,20 @@ void EdgeProcessing::LoadImageBW(string fileName)
 }
 void EdgeProcessing::MakeBlackAndWhiteIfGreenBackground()
 {
-	unsigned green = 0;
+    unsigned green = 0;
     src.forEach<Vec3b>([&,this](Vec3b &pix, const int * position) -> void {
-        if(IsGreen(pix)){
+        if(IsGreen(pix)) {
             green++;
         }
     });
     if(!green)return;
     src.forEach<Vec3b>([this](Vec3b &pix, const int * position) -> void {
-            if(IsGreen(pix)){
-                MakeWhite(pix);
-            }else{
-                MakeBlack(pix);
-            }
-        });
+        if(IsGreen(pix)) {
+            MakeWhite(pix);
+        } else{
+            MakeBlack(pix);
+        }
+    });
 }
 vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
 {
@@ -214,14 +213,13 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
             int new_y = static_cast<int>(round(new_yf));
             centerDiff_x = abs(round(center_x) - prevCenter_x);
             centerDiff_y = abs(round(center_y) - prevCenter_y);
-            if(centerDiff_x < 2 && centerDiff_y < 2){
+            if(centerDiff_x < 2 && centerDiff_y < 2) {
                 needMorePrecision = false;
                 useNewRectangle = true;
             }
             blackWhiteDiff = abs(numBlack - numWhite);
             blackWhiteRatioCurrent = (float)blackWhiteDiff / (numBlack + numWhite);
-            if(!needMorePrecision && blackWhiteRatioCurrent > blackWhiteRatioMax)
-            {
+            if(!needMorePrecision && blackWhiteRatioCurrent > blackWhiteRatioMax) {
                 useNewRectangle = false;
                 break;
             }
@@ -231,7 +229,7 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
             rect = newRect;
             prevCenter_x = center_x;
             prevCenter_y = center_y;
-            
+
             lessThanSecondCycle = numCycles < 2 ? true : false;
             ++numCycles;
         }
@@ -239,6 +237,26 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
         if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
     }
     return centeredChunks;
+}
+vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
+{
+    vector<int> indices(src.cols,-1);
+    unsigned which = 0;
+    for(auto& p : notOrderly)
+    {
+        indices[p[0]] = which++;
+    }
+    
+    vector<Vec2i> orderly;
+    for(int i : indices)
+    {
+        if(i > -1){
+            Vec2i p = notOrderly[i];
+            orderly.push_back(p);
+        }
+    }
+    
+    return orderly;
 }
 void EdgeProcessing::ShowSelectedChunks(vector<Rect>& selected)
 {
@@ -260,17 +278,39 @@ void EdgeProcessing::ShowSelectedChunks(vector<Rect>& selected)
     imshow("original Image", redColored);
     waitKey(0);
 }
+void EdgeProcessing::ShowLinesBetweenPoints(vector<Vec2i>& points)
+{
+    Mat imgWithLine = src.clone();
+    Vec3b color {0,255,0};
+    Vec2i p0 = *(points.begin());
+    Vec2i p1;
+    unsigned nuPoints = points.size();
+    unsigned i = 1;
+    for(i ; i < nuPoints ; i++) {
+        p1 = points[i];
+        line(imgWithLine,p0,p1,color);
+        p0 = p1;
+    }
+    imshow("line", imgWithLine);
+    waitKey(0);
 
+}
 void EdgeProcessing::FindEdgePixels()
 {
     MakeBlackAndWhiteIfGreenBackground();
-    imshow("black White Image", src);
-    waitKey(0);
+//    imshow("black White Image", src);
+//    waitKey(0);
     vector<Rect> chunks = DivideImageIntoSquareChunks();
     vector<Rect> chunksOnEdge = SelectWithBlackAndWhitePixels(chunks);
 //    ShowSelectedChunks(chunksOnEdge);
     vector<Rect> chunksAccurateOnEdge = FindBlackEqualWhiteInNeighborhood(chunksOnEdge);
-    ShowSelectedChunks(chunksAccurateOnEdge);
+    
+    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
+//    ShowLinesBetweenPoints(pointsNotSorted);
+    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
+    
+    ShowLinesBetweenPoints(pointsOrderly);
+//    ShowSelectedChunks(chunksAccurateOnEdge);
     auto chunksSize = chunks.size();
     auto chunksOnEdgeSize = chunksOnEdge.size();
 
@@ -304,25 +344,25 @@ bool EdgeProcessing::IsGreen(const Vec3b& p)
     float blueDivGreen = (float)p[0] / p[1];
     if(
         redDivGreen < otherChannelsRatioMax &&
-        blueDivGreen < otherChannelsRatioMax 
+        blueDivGreen < otherChannelsRatioMax
     )return true;
     return false;
 }
 void EdgeProcessing::MakeWhite(Vec3b& p)
 {
-	p[0] = 255;
-	p[1] = 255;
-	p[2] = 255;
+    p[0] = 255;
+    p[1] = 255;
+    p[2] = 255;
 }
 void EdgeProcessing::MakeBlack(Vec3b& p)
 {
-	p[0] = 0;
-	p[1] = 0;
-	p[2] = 0;
+    p[0] = 0;
+    p[1] = 0;
+    p[2] = 0;
 }
 Mat EdgeProcessing::CreateGhost()
 {
-	Mat ghost{100,100,CV_8UC3};
+    Mat ghost {100,100,CV_8UC1};
     uchar randColor[3];//not inited make random
     ghost.forEach<Vec3b>([&, this](Vec3b &pix, const int * position) -> void {
         pix[0] = randColor[0];
@@ -331,3 +371,14 @@ Mat EdgeProcessing::CreateGhost()
     });
     return ghost;
 }
+vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(vector<Rect>& rects)
+{
+    vector<Vec2i> centres;
+    for(auto& r : rects) {
+        int x = (float)round(r.x + r.width / 2.0);
+        int y = (float)round(r.y + r.height / 2.0);
+        centres.push_back(Vec2i {x,y});
+    }
+    return centres;
+}
+
