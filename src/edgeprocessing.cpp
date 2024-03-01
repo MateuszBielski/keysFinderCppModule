@@ -7,7 +7,7 @@
 namespace fs = std::filesystem;
 
 using namespace cv;
-using std::cout;
+using std::cout, std::flush;
 
 void EdgeProcessing::LoadParameters(inih::INIReader& r)
 {
@@ -36,6 +36,9 @@ void EdgeProcessing::LoadImageBW(string fileName)
     }
 
     src = imread(fileName,IMREAD_COLOR);
+
+    srcUchar = Mat::zeros(src.rows,src.cols,CV_8UC1);
+
 //    uchar * dataBegin = src.data;
 //    const uchar * dataEnd = src.dataend;
 //
@@ -106,29 +109,26 @@ vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
 }
 vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChunks)
 {
+    timeRecorder.reset();
+    timeRecorder.start();
     vector<Rect> bwChunks;
-    for(auto& ch : allChunks) {
-        Mat chunk;
-        try {
-            chunk = Mat {src, ch};
-        } catch(std::exception& e) {
-            cout<<"\n"<<e.what();
-            cout<<"\nsrc.cols = "<<src.cols<<" ch.x + ch.width = "<<ch.x + ch.width;
-            cout<<"\nsrc.rows = "<<src.rows<<" ch.y + ch.height = "<<ch.y + ch.height<<std::flush;
-            continue;
-        }
+    for(auto& rect : allChunks) {
         unsigned white = 0, black = 0;
-
-        chunk.forEach<Vec3b>([ &, this](Vec3b &p, const int * position) -> void {
+        ForEachPixOfSourceImageInsideRect(rect,[ &, this](Vec3b &p, const int * position) -> void {
             if(IsBlack(p)) {
+                srcUchar.at<uchar>(position[1],position[0]) |= blackFg;
                 black++;
                 return;
             }
-            if(IsWhite(p))white++;
+            if(IsWhite(p)) {
+                srcUchar.at<uchar>(position[1],position[0]) |= whiteFg;
+                white++;
+            }
         });
-        if(black && white)bwChunks.push_back(ch);
+        if(black && white)bwChunks.push_back(rect);
     }
-
+    timeRecorder.stop();
+    timeSelectWithBlackAndWhitePixels = timeRecorder.getTimeMilli();
     return bwChunks;
 }
 void EdgeProcessing::TrimToImageBorder(Rect& rect)
@@ -159,6 +159,8 @@ void EdgeProcessing::ForEachPixOfSourceImageInsideRect(Rect& rect, std::function
 
 vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& selected)
 {
+    timeRecorder.reset();
+    timeRecorder.start();
     vector<Rect> centeredChunks;
     unsigned numChunks = 0;
     for(auto& sel : selected) {
@@ -236,26 +238,89 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
         numChunks++;
         if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
     }
+    timeRecorder.stop();
+    timeFindBlackEqualWhite = timeRecorder.getTimeMilli();
     return centeredChunks;
+}
+vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
+{
+    vector<Vec2i> result;
+    auto EverySecond = [](int sizeSrc, vector<int>& dst)->void {
+        int isOdd = sizeSrc%2;
+        int half = (sizeSrc - isOdd) / 2;
+        int everySecondSize = isOdd + half;
+        dst.resize(everySecondSize);
+        int i = 0;
+        for(i; i < half; i++) dst[i] = 2*i;
+        if(isOdd)dst[i] = 1 + 2*(i - 1);
+    };
+    for(auto& rect : rects) {
+
+        vector<int> everySecond_x;
+        vector<int> everySecond_y;
+        EverySecond(rect.x,everySecond_x);
+        EverySecond(rect.y,everySecond_y);
+        //https://www.geeksforgeeks.org/bitmasking-in-cpp/
+        
+
+        uchar pix1 = 0;
+        uchar pix2 = 0;
+        //set color
+        pix1 |= whiteFg;
+        pix2 |= blackFg;
+        bool isBorder = pix1 & borderCheckFg;
+        pix1 |= borderCheckFg;
+        isBorder = pix1 & borderCheckFg;
+
+        auto CheckAndSetIfBorder = [](uchar& pix1, uchar& pix2)->void {
+            if (pix2 & borderCheckFg) return;
+            if (pix2 & borderCheckFg) return;
+            //if colors are different, set both as border
+            if(pix1 != pix2) {
+                pix1 |= borderCheckFg;
+                pix2 |= borderCheckFg;
+            }
+        };
+
+//        -1,-1
+//        for(auto& evSecRow : everySecond_y)
+//        {
+//            for(auto& evSecCol : everySecond_x)
+//            {
+//                ul = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol - 1);
+//                uc = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol + 0);
+//                ur = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol + 1);
+//                cl = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol - 1);
+//                cc = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol + 0);
+//                cr = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol + 1);
+//
+//                if(ul != border ul != uc)srcUchar.at<uchar>()
+//            }
+//        }
+    }
+//            auto AddBlacksAddWhites = [ &, this](Vec3b &p, const int * absolutePosition) -> void {
+//    ForEachPixOfSourceImageInsideRect(rect,AddBlacksAddWhites);
+    return result;
 }
 vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
 {
+    timeRecorder.reset();
+    timeRecorder.start();
     vector<int> indices(src.cols,-1);
     unsigned which = 0;
-    for(auto& p : notOrderly)
-    {
+    for(auto& p : notOrderly) {
         indices[p[0]] = which++;
     }
-    
+
     vector<Vec2i> orderly;
-    for(int i : indices)
-    {
-        if(i > -1){
+    for(int i : indices) {
+        if(i > -1) {
             Vec2i p = notOrderly[i];
             orderly.push_back(p);
         }
     }
-    
+    timeRecorder.stop();
+    timeArrangeInOrder = timeRecorder.getTimeMilli();
     return orderly;
 }
 void EdgeProcessing::ShowSelectedChunks(vector<Rect>& selected)
@@ -269,8 +334,8 @@ void EdgeProcessing::ShowSelectedChunks(vector<Rect>& selected)
             if(IsBlack(pix)) {
                 pix[2] = 190;
             } else {
-                pix[0] = 40;
-                pix[1] = 40;
+                pix[0] = 41;
+                pix[1] = 41;
             }
             num++;
         });
@@ -282,14 +347,16 @@ void EdgeProcessing::ShowLinesBetweenPoints(vector<Vec2i>& points)
 {
     Mat imgWithLine = src.clone();
     Vec3b color {0,255,0};
-    Vec2i p0 = *(points.begin());
-    Vec2i p1;
-    unsigned nuPoints = points.size();
-    unsigned i = 1;
-    for(i ; i < nuPoints ; i++) {
-        p1 = points[i];
-        line(imgWithLine,p0,p1,color);
-        p0 = p1;
+    if(points.size()) {
+        Vec2i p0 = *(points.begin());
+        Vec2i p1;
+        unsigned nuPoints = points.size();
+        unsigned i = 1;
+        for(i ; i < nuPoints ; i++) {
+            p1 = points[i];
+            line(imgWithLine,p0,p1,color);
+            p0 = p1;
+        }
     }
     imshow("line", imgWithLine);
     waitKey(0);
@@ -304,13 +371,17 @@ void EdgeProcessing::FindEdgePixels()
     vector<Rect> chunksOnEdge = SelectWithBlackAndWhitePixels(chunks);
 //    ShowSelectedChunks(chunksOnEdge);
     vector<Rect> chunksAccurateOnEdge = FindBlackEqualWhiteInNeighborhood(chunksOnEdge);
-    
-    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
+
+//    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
+    vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
 //    ShowLinesBetweenPoints(pointsNotSorted);
     vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
-    
+    cout<<"\ntime of SelectWithBlackAndWhitePixels: "<<timeSelectWithBlackAndWhitePixels<<"ms";
+    cout<<"\ntime of FindBlackEqualWhite: "<<timeFindBlackEqualWhite<<"ms";
+    cout<<"\ntime of ArrangeInOrder: "<<timeArrangeInOrder<<"ms";
+    cout<<"\n"<<flush;
+    ShowSelectedChunks(chunksAccurateOnEdge);
     ShowLinesBetweenPoints(pointsOrderly);
-//    ShowSelectedChunks(chunksAccurateOnEdge);
     auto chunksSize = chunks.size();
     auto chunksOnEdgeSize = chunksOnEdge.size();
 
@@ -362,7 +433,7 @@ void EdgeProcessing::MakeBlack(Vec3b& p)
 }
 Mat EdgeProcessing::CreateGhost()
 {
-    Mat ghost {100,100,CV_8UC1};
+    Mat ghost(100,100,CV_8UC3);
     uchar randColor[3];//not inited make random
     ghost.forEach<Vec3b>([&, this](Vec3b &pix, const int * position) -> void {
         pix[0] = randColor[0];
@@ -381,4 +452,3 @@ vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(vector<Rect>& rects)
     }
     return centres;
 }
-

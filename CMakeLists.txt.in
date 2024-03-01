@@ -1,14 +1,18 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(opencv-download NONE)
+project(opencv NONE)
 
 include(ExternalProject)
-ExternalProject_Add(opencv-download
-  GIT_REPOSITORY    https://github.com/opencv/opencv.git
-  GIT_TAG           master
+ExternalProject_Add(opencv
+  GIT_REPOSITORY "https://github.com/opencv/opencv.git"
+  GIT_TAG        "4.9.0"
+  #CHECKOUT
   GIT_SHALLOW       ON
-  SOURCE_DIR        "${openCVexternDir}/opencv-src"
-  BINARY_DIR        "${openCVexternDir}/opencv-build"
+  UPDATE_COMMAND	""
+  PATCH_COMMAND 	""
+  SOURCE_DIR        "${opencvExternDir}/opencv-src"
+  BINARY_DIR        "${opencvExternDir}/opencv-build"
+  INSTALL_DIR		"${opencvExternDir}/opencv-install"
   CONFIGURE_COMMAND ""
   BUILD_COMMAND     ""
   INSTALL_COMMAND   ""
