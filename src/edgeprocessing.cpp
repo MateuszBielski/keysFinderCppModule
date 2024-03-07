@@ -204,7 +204,7 @@ list<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& al
     list<Rect> bwChunks;
     uchar color;
 
-    for(auto& rect : allRects) {
+    for(auto rect : allRects) {
         unsigned white = 0, black = 0;
         ForEachPixOfUcharSourceInsideRect(rect,[&, this](uchar& p, const int * position) -> void {
             color = srcUchar.at<uchar>(position[1],position[0]) << 6;
@@ -226,6 +226,7 @@ list<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& al
 
     timeRecorder.stop();
     times[nameOfFunction] = timeRecorder.getTimeMilli();
+    auto size = bwChunks.size();
     return bwChunks;
 }
 Mat EdgeProcessing::RecognizeWhiteAndBlack()
@@ -647,7 +648,16 @@ void EdgeProcessing::FindEdgePixels()
     list<Rect> bigChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(bigChunks);
 //    ShowSelectedChunks(chunksOnEdge);
     list<Rect> chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(bigChunksOnEdge);
-
+    
+    for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
+    cout<<"\n"<<flush;
+    ShowSelectedChunks(chunksAccurateOnEdge);
+    list<Rect> smallChunks = DivideRectIntoSquaresAndRest(chunksAccurateOnEdge, shortSideDivider);
+    list<Rect> smallChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(smallChunks);
+    auto smallChunksSize = smallChunks.size();
+    auto smallChunksOnEdgeSize = smallChunksOnEdge.size();
+    chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(smallChunksOnEdge);
+    
 //    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
 //    vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
 //    ShowLinesBetweenPoints(pointsNotSorted);
@@ -656,9 +666,6 @@ void EdgeProcessing::FindEdgePixels()
     cout<<"\n"<<flush;
     ShowSelectedChunks(chunksAccurateOnEdge);
 //    ShowLinesBetweenPoints(pointsOrderly);
-    auto chunksSize = bigChunks.size();
-    auto chunksOnEdgeSize = bigChunksOnEdge.size();
-
 }
 void EdgeProcessing::FindEdgePixelsOld()
 {
