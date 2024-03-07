@@ -7,7 +7,7 @@
 namespace fs = std::filesystem;
 
 using namespace cv;
-using std::cout, std::flush;
+using std::cout, std::flush, std::move;
 
 void EdgeProcessing::LoadParameters(inih::INIReader& r)
 {
@@ -110,61 +110,67 @@ vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
     }
     return chunks;
 }
-vector<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(Rect& source, ushort shortSideDivider)
+list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ushort shortSideDivider)
 {
-	timeRecorder.reset();
+    timeRecorder.reset();
     timeRecorder.start();
-    
-    unsigned shortSide = source.width > source.height ? source.height : source.width;
-    unsigned longSide = source.height + source.width - shortSide;
-    unsigned restShortSide = shortSide % shortSideDivider;
-    unsigned squareSide = (shortSide - restShortSide) / shortSideDivider;
-    unsigned lastWidth = source.width % squareSide;
-    unsigned lastHeight = source.height % squareSide;
-    unsigned numbOfHorizontalSquares = (source.width - lastWidth) / squareSide;
-    unsigned numbOfVerticalSquares = (source.height - lastHeight) / squareSide;
-    
-    unsigned numbOfHorizontalChunks = numbOfHorizontalSquares;
-    unsigned numbOfVerticalChunks = numbOfVerticalSquares;
+    list<Rect> result;
 
-    if(lastWidth > 0)++numbOfHorizontalChunks;
-    if(lastHeight > 0)++numbOfVerticalChunks;
-    
-    vector<Rect> chunks { numbOfHorizontalChunks * numbOfVerticalChunks};
+    for(auto& source : sources) {
 
-    unsigned fromLeft = 0, fromTop = 0, width , height;
+        unsigned shortSide = source.width > source.height ? source.height : source.width;
+        unsigned longSide = source.height + source.width - shortSide;
+        unsigned restShortSide = shortSide % shortSideDivider;
+        unsigned squareSide = (shortSide - restShortSide) / shortSideDivider;
+        unsigned lastWidth = source.width % squareSide;
+        unsigned lastHeight = source.height % squareSide;
+        unsigned numbOfHorizontalSquares = (source.width - lastWidth) / squareSide;
+        unsigned numbOfVerticalSquares = (source.height - lastHeight) / squareSide;
 
-    unsigned w, h;
-    //rows
-    for(h = 0 ; h < numbOfVerticalSquares; h++ ) {
-        width  = height = squareSide;
-        //cols
-        for(w = 0; w < numbOfHorizontalSquares; w++) {
-            chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, width, height);
-            fromLeft += width;
+        unsigned numbOfHorizontalChunks = numbOfHorizontalSquares;
+        unsigned numbOfVerticalChunks = numbOfVerticalSquares;
+
+        if(lastWidth > 0)++numbOfHorizontalChunks;
+        if(lastHeight > 0)++numbOfVerticalChunks;
+
+        vector<Rect> chunks { numbOfHorizontalChunks * numbOfVerticalChunks};
+
+        unsigned fromLeft = 0, fromTop = 0, width , height;
+
+        unsigned w, h;
+        //rows
+        for(h = 0 ; h < numbOfVerticalSquares; h++ ) {
+            width  = height = squareSide;
+            //cols
+            for(w = 0; w < numbOfHorizontalSquares; w++) {
+                chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, width, height);
+                fromLeft += width;
+            }
+            //last col
+            if(lastWidth > 0) chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, lastWidth, height);
+
+            fromTop += height;
+            fromLeft = 0;
         }
-        //last col
-        if(lastWidth > 0) chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, lastWidth, height);
-
-        fromTop += height;
-        fromLeft = 0;
-    }
-    //last row
-    if(lastHeight > 0) {
-        for(w = 0; w < numbOfHorizontalSquares; w++) {
-            chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, width, lastHeight);
-            fromLeft += width;
+        //last row
+        if(lastHeight > 0) {
+            for(w = 0; w < numbOfHorizontalSquares; w++) {
+                chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, width, lastHeight);
+                fromLeft += width;
+            }
+            //last cell
+            if(lastWidth > 0) chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, lastWidth, lastHeight);
         }
-        //last cell
-        if(lastWidth > 0) chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, lastWidth, lastHeight);
+        for(auto& chunk : chunks)result.push_back(move(chunk));
     }
+
     string nameOfFunction = typeid(*this).name();
     nameOfFunction +="::";
     nameOfFunction += __FUNCTION__;
-    
+
     timeRecorder.stop();
     times[nameOfFunction] = timeRecorder.getTimeMilli();
-    return chunks;
+    return result;
 }
 vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChunks)
 {
@@ -190,14 +196,14 @@ vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChun
     timeSelectWithBlackAndWhitePixels = timeRecorder.getTimeMilli();
     return bwChunks;
 }
-vector<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(vector<Rect>& allRects)
+list<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& allRects)
 {
     timeRecorder.reset();
     timeRecorder.start();
-    
-    vector<Rect> bwChunks;
+
+    list<Rect> bwChunks;
     uchar color;
-    
+
     for(auto& rect : allRects) {
         unsigned white = 0, black = 0;
         ForEachPixOfUcharSourceInsideRect(rect,[&, this](uchar& p, const int * position) -> void {
@@ -213,11 +219,11 @@ vector<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(vector<Rect>
         });
         if(black && white)bwChunks.push_back(rect);
     }
-    
+
     string nameOfFunction = typeid(*this).name();
     nameOfFunction +="::";
     nameOfFunction += __FUNCTION__;
-    
+
     timeRecorder.stop();
     times[nameOfFunction] = timeRecorder.getTimeMilli();
     return bwChunks;
@@ -282,6 +288,98 @@ void EdgeProcessing::ForEachPixOfUcharSourceInsideRect(Rect&  rect, std::functio
         }
 
     }
+}
+list<Rect> EdgeProcessing::CenterRectsOnBorderAndRemoveSpots(list<Rect>& selected)
+{
+    timeRecorder.reset();
+    timeRecorder.start();
+    list<Rect> centeredChunks;
+    unsigned numChunks = 0;
+    for(auto& rect : selected) {
+//        Rect rect {sel};
+        bool needMorePrecision = true;
+        bool lessThanSecondCycle = true;
+        bool useNewRectangle;
+        int numWhite = 0, numBlack = 0;
+        int prevCenter_x = round(rect.x + rect.width / 2.0);
+        int prevCenter_y = round(rect.y + rect.height / 2.0);
+        int centerDiff_x = 10;
+        int centerDiff_y = 10;
+        ushort numCycles = 0;
+        int blackWhiteDiff;
+        int prevBlackWhiteDiff;
+        float blackWhiteRatioCurrent;
+        uchar color;
+        if(numChunks == 4) {
+            int r = 1;
+        }
+        while(lessThanSecondCycle || needMorePrecision ) {
+            useNewRectangle = false;
+            float centerWhite_x = 0.0, centerWhite_y = 0.0,
+                  centerBlack_x = 0.0, centerBlack_y = 0.0;
+            numWhite = 0;
+            numBlack = 0;
+            auto AddBlacksAddWhites = [ &, this](uchar& p, const int * absolutePosition) -> void {
+                color = srcUchar.at<uchar>(absolutePosition[1],absolutePosition[0]) << 6;
+                color >>= 6;
+                if(color == blackFg) {
+                    ++numBlack;
+                    centerBlack_x += absolutePosition[0];
+                    centerBlack_y += absolutePosition[1];
+                    return;
+                }
+                if(color == whiteFg) {
+                    ++numWhite;
+                    centerWhite_x += absolutePosition[0];
+                    centerWhite_y += absolutePosition[1];
+                }
+            };
+            ForEachPixOfUcharSourceInsideRect(rect,AddBlacksAddWhites);
+
+            if(!numWhite || !numBlack)break;
+
+            centerWhite_x /= numWhite;
+            centerWhite_y /= numWhite;
+            centerBlack_x /= numBlack;
+            centerBlack_y /= numBlack;
+            float center_x = (centerWhite_x + centerBlack_x)/2.0;
+            float center_y = (centerWhite_y + centerBlack_y)/2.0;
+            float new_xf = center_x - rect.width / 2;
+            float new_yf = center_y - rect.height / 2;
+            int new_x = static_cast<int>(round(new_xf));
+            int new_y = static_cast<int>(round(new_yf));
+            centerDiff_x = abs(round(center_x) - prevCenter_x);
+            centerDiff_y = abs(round(center_y) - prevCenter_y);
+            if(centerDiff_x < 2 && centerDiff_y < 2) {
+                needMorePrecision = false;
+                useNewRectangle = true;
+            }
+            blackWhiteDiff = abs(numBlack - numWhite);
+            blackWhiteRatioCurrent = (float)blackWhiteDiff / (numBlack + numWhite);
+            if(!needMorePrecision && blackWhiteRatioCurrent > blackWhiteRatioMax) {
+                //skip spots
+                useNewRectangle = false;
+                break;
+            }
+            Rect newRect {new_x, new_y, rect.width, rect.height};
+            TrimToImageBorder(newRect);
+
+            rect = newRect;
+            prevCenter_x = center_x;
+            prevCenter_y = center_y;
+
+            lessThanSecondCycle = numCycles < 2 ? true : false;
+            ++numCycles;
+        }
+        numChunks++;
+        if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
+    }
+    timeRecorder.stop();
+    string nameOfFunction = typeid(*this).name();
+    nameOfFunction +="::";
+    nameOfFunction += __FUNCTION__;
+    times[nameOfFunction] = timeRecorder.getTimeMilli();
+    return centeredChunks;
 }
 
 vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& selected)
@@ -416,7 +514,7 @@ vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
         map<int,int> swapedDirections;
         vector<Vec2i> directions {{-1,0},
             {1,0},
-//            ...
+    //            ...
 
         };
         short i = 0;
@@ -425,7 +523,7 @@ vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
             swapedDirections[hashDir] = i++;
         }
 
-//        directions[]
+    //        directions[]
         auto NextPair = [](Vec2i& p1, Vec2i& p2, Vec2i& p0, directions)->bool {
             Vec2i currentDir = p2 - p1;
             bool nextPairAvaliable = true;
@@ -444,34 +542,34 @@ vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
             directions[hashCurrentDir] =
 
         };
-//        Vec2i point1 =;
-//        Vec2i point2 =;
+    //        Vec2i point1 =;
+    //        Vec2i point2 =;
         Vec2i startPoint = point1;
         bool continueFindBorder = true;
         while(continueFindBorder) {
-//            direction = DetermineDirection(directionsOrder);
-//            continueFindBorder &= CheckAndSetIfBorder(srcUchar.at(point1),srcUchar(point2));
-//            continueFindBorder &= NextPair(point1,point2,startPoint,directionsOrder);
+    //            direction = DetermineDirection(directionsOrder);
+    //            continueFindBorder &= CheckAndSetIfBorder(srcUchar.at(point1),srcUchar(point2));
+    //            continueFindBorder &= NextPair(point1,point2,startPoint,directionsOrder);
         }
 
-//        auto MoveByOnePix = [](Vec2i lastChecked, Vec2i whichNext, function<bool(uchar&, uchar&) Check)->void{
-//
-//        };
-//        -1,-1
-//        for(auto& evSecRow : everySecond_y)
-//        {
-//            for(auto& evSecCol : everySecond_x)
-//            {
-//                ul = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol - 1);
-//                uc = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol + 0);
-//                ur = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol + 1);
-//                cl = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol - 1);
-//                cc = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol + 0);
-//                cr = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol + 1);
-//
-//                if(ul != border ul != uc)srcUchar.at<uchar>()
-//            }
-//        }
+    //        auto MoveByOnePix = [](Vec2i lastChecked, Vec2i whichNext, function<bool(uchar&, uchar&) Check)->void{
+    //
+    //        };
+    //        -1,-1
+    //        for(auto& evSecRow : everySecond_y)
+    //        {
+    //            for(auto& evSecCol : everySecond_x)
+    //            {
+    //                ul = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol - 1);
+    //                uc = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol + 0);
+    //                ur = srcUchar.at<uchar>(rect.y + evSecRow - 1,rect.x + evSecCol + 1);
+    //                cl = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol - 1);
+    //                cc = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol + 0);
+    //                cr = srcUchar.at<uchar>(rect.y + evSecRow + 0,rect.x + evSecCol + 1);
+    //
+    //                if(ul != border ul != uc)srcUchar.at<uchar>()
+    //            }
+    //        }
     }
     */
 //            auto AddBlacksAddWhites = [ &, this](Vec3b &p, const int * absolutePosition) -> void {
@@ -499,7 +597,7 @@ vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
     timeArrangeInOrder = timeRecorder.getTimeMilli();
     return orderly;
 }
-void EdgeProcessing::ShowSelectedChunks(vector<Rect>& selected)
+void EdgeProcessing::ShowSelectedChunks(list<Rect>& selected)
 {
     Mat redColored = src.clone();
     unsigned x, y, num = 0;
@@ -544,11 +642,11 @@ void EdgeProcessing::FindEdgePixels()
 //    imshow("black White Image", src);
 //    waitKey(0);
     srcUchar = RecognizeWhiteAndBlack();
-    Rect imageRect(0,0,srcUchar.cols, srcUchar.rows);
-    vector<Rect> bigChunks = DivideRectIntoSquaresAndRest(imageRect, shortSideDivider);
-    vector<Rect> bigChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(bigChunks);
+    list<Rect> imageRect {Rect (0,0,srcUchar.cols, srcUchar.rows)};
+    list<Rect> bigChunks = DivideRectIntoSquaresAndRest(imageRect, shortSideDivider);
+    list<Rect> bigChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(bigChunks);
 //    ShowSelectedChunks(chunksOnEdge);
-//    vector<Rect> chunksAccurateOnEdge = FindBlackEqualWhiteInNeighborhood(chunksOnEdge);
+    list<Rect> chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(bigChunksOnEdge);
 
 //    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
 //    vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
@@ -556,7 +654,7 @@ void EdgeProcessing::FindEdgePixels()
 //    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
     for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
     cout<<"\n"<<flush;
-    ShowSelectedChunks(bigChunksOnEdge);
+    ShowSelectedChunks(chunksAccurateOnEdge);
 //    ShowLinesBetweenPoints(pointsOrderly);
     auto chunksSize = bigChunks.size();
     auto chunksOnEdgeSize = bigChunksOnEdge.size();
@@ -580,7 +678,7 @@ void EdgeProcessing::FindEdgePixelsOld()
     cout<<"\ntime of FindBlackEqualWhite: "<<timeFindBlackEqualWhite<<"ms";
     cout<<"\ntime of ArrangeInOrder: "<<timeArrangeInOrder<<"ms";
     cout<<"\n"<<flush;
-    ShowSelectedChunks(chunksAccurateOnEdge);
+//    ShowSelectedChunks(chunksAccurateOnEdge);
     ShowLinesBetweenPoints(pointsOrderly);
     auto chunksSize = chunks.size();
     auto chunksOnEdgeSize = chunksOnEdge.size();
@@ -652,4 +750,3 @@ vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(vector<Rect>& rects)
     }
     return centres;
 }
-

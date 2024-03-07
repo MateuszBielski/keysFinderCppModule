@@ -4,6 +4,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <list>
 #include <vector>
 #include <map>
 #include <opencv2/imgproc.hpp>
@@ -17,7 +18,7 @@
 #define blackFg 0b00000001
 #define whiteFg 0b00000011
 
-using std::string, std::vector, std::map, std::function;
+using std::string, std::list , std::vector, std::map, std::function;
 using cv::Mat, cv::Rect, cv::Vec3b, cv::Vec2i, cv::TickMeter;
 
 class EdgeProcessing
@@ -41,16 +42,16 @@ private:
 
     void MakeBlackAndWhiteIfGreenBackground();
     vector<Rect> DivideImageIntoSquareChunks();//--
-    vector<Rect> DivideRectIntoSquaresAndRest(Rect& src, ushort shortSideDivider);
+    list<Rect> DivideRectIntoSquaresAndRest(list<Rect>& src, ushort shortSideDivider);
     Mat RecognizeWhiteAndBlack();
     vector<Rect> SelectWithBlackAndWhitePixels(vector<Rect>& );//--
-    vector<Rect> SelectFromSrcUcharWithNotTheSamePixels(vector<Rect>& );
+    list<Rect> SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& );
     vector<Rect> FindBlackEqualWhiteInNeighborhood(vector<Rect>& );//--
-    vector<Rect> CenterRectsOnBorderAndRemoveSpots(Mat&, vector<Rect>& );
+    list<Rect> CenterRectsOnBorderAndRemoveSpots(list<Rect>& );
     vector<Vec2i> GetCentresOfRectangles(vector<Rect>& );
     vector<Vec2i> GetBlackPixBorderingWithWhite(vector<Rect>& );
     vector<Vec2i> ArrangeInOrder(vector<Vec2i>& );
-    void ShowSelectedChunks(vector<Rect>& );
+    void ShowSelectedChunks(list<Rect>& );
     void ShowLinesBetweenPoints(vector<Vec2i>& );
     void TrimToImageBorder(Rect& );
     void ForEachPixOfSourceImageInsideRect(Rect& , function<void(Vec3b&, const int *)> const& lambda);
