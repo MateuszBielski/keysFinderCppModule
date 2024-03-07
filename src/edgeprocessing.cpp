@@ -115,6 +115,7 @@ list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ush
     timeRecorder.reset();
     timeRecorder.start();
     list<Rect> result;
+   
 
     for(auto& source : sources) {
 
@@ -122,6 +123,10 @@ list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ush
         unsigned longSide = source.height + source.width - shortSide;
         unsigned restShortSide = shortSide % shortSideDivider;
         unsigned squareSide = (shortSide - restShortSide) / shortSideDivider;
+        if (!squareSide)
+        {
+            continue;
+        }
         unsigned lastWidth = source.width % squareSide;
         unsigned lastHeight = source.height % squareSide;
         unsigned numbOfHorizontalSquares = (source.width - lastWidth) / squareSide;
@@ -135,7 +140,7 @@ list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ush
 
         vector<Rect> chunks { numbOfHorizontalChunks * numbOfVerticalChunks};
 
-        unsigned fromLeft = 0, fromTop = 0, width , height;
+        unsigned fromLeft = source.x , fromTop = source.y , width , height;
 
         unsigned w, h;
         //rows
@@ -150,7 +155,7 @@ list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ush
             if(lastWidth > 0) chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, lastWidth, height);
 
             fromTop += height;
-            fromLeft = 0;
+            fromLeft = source.x;
         }
         //last row
         if(lastHeight > 0) {
@@ -207,7 +212,8 @@ list<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& al
     for(auto rect : allRects) {
         unsigned white = 0, black = 0;
         ForEachPixOfUcharSourceInsideRect(rect,[&, this](uchar& p, const int * position) -> void {
-            color = srcUchar.at<uchar>(position[1],position[0]) << 6;
+            //color = srcUchar.at<uchar>(position[1],position[0]) << 6;
+            color = p << 6;
             color >>= 6;
             if(color == whiteFg) {
                 white++;
@@ -321,7 +327,8 @@ list<Rect> EdgeProcessing::CenterRectsOnBorderAndRemoveSpots(list<Rect>& selecte
             numWhite = 0;
             numBlack = 0;
             auto AddBlacksAddWhites = [ &, this](uchar& p, const int * absolutePosition) -> void {
-                color = srcUchar.at<uchar>(absolutePosition[1],absolutePosition[0]) << 6;
+                //color = srcUchar.at<uchar>(absolutePosition[1],absolutePosition[0]) << 6;
+                color = p << 6;
                 color >>= 6;
                 if(color == blackFg) {
                     ++numBlack;
@@ -658,14 +665,14 @@ void EdgeProcessing::FindEdgePixels()
     auto smallChunksOnEdgeSize = smallChunksOnEdge.size();
     chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(smallChunksOnEdge);
     
-//    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
-//    vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
+    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
+    //vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
 //    ShowLinesBetweenPoints(pointsNotSorted);
-//    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
+    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
     for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
     cout<<"\n"<<flush;
-    ShowSelectedChunks(chunksAccurateOnEdge);
-//    ShowLinesBetweenPoints(pointsOrderly);
+    //ShowSelectedChunks(chunksAccurateOnEdge);
+    ShowLinesBetweenPoints(pointsOrderly);
 }
 void EdgeProcessing::FindEdgePixelsOld()
 {
@@ -747,13 +754,15 @@ Mat EdgeProcessing::CreateGhost()
     });
     return ghost;
 }
-vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(vector<Rect>& rects)
+vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(list<Rect>& rects)
 {
-    vector<Vec2i> centres;
+    vector<Vec2i> centres(rects.size());
+    auto iter = centres.begin();
     for(auto& r : rects) {
         int x = (float)round(r.x + r.width / 2.0);
         int y = (float)round(r.y + r.height / 2.0);
-        centres.push_back(Vec2i {x,y});
+        *iter++ = Vec2i{ x,y };
+        //centres.push_back(Vec2i {x,y});
     }
     return centres;
 }

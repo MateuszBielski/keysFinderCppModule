@@ -1,8 +1,7 @@
 Debug*/
+Release/
 *mk
 *txt
-Resources/
-Libs/
 !CMakeLists.txt
 !CMakeListsExternalProj.txt
 .cmake_dirty
@@ -10,3 +9,5 @@ Libs/
 *vcxproj*
 *.cmake
 *CMakeFiles/
+*.dir/
+x64/

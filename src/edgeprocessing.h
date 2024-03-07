@@ -48,7 +48,7 @@ private:
     list<Rect> SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& );
     vector<Rect> FindBlackEqualWhiteInNeighborhood(vector<Rect>& );//--
     list<Rect> CenterRectsOnBorderAndRemoveSpots(list<Rect>& );
-    vector<Vec2i> GetCentresOfRectangles(vector<Rect>& );
+    vector<Vec2i> GetCentresOfRectangles(list<Rect>& );
     vector<Vec2i> GetBlackPixBorderingWithWhite(vector<Rect>& );
     vector<Vec2i> ArrangeInOrder(vector<Vec2i>& );
     void ShowSelectedChunks(list<Rect>& );
