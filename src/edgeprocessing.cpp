@@ -27,6 +27,9 @@ void EdgeProcessing::LoadParameters(inih::INIReader& r)
     try {
         otherChannelsRatioMax = r.Get<float>("section1", "otherChannelsRatioMax");
     } catch(std::exception& e) {}
+    try {
+        shortSideDivider = r.Get<ushort>("section1", "shortSideDivider");
+    } catch(std::exception& e) {}
 }
 void EdgeProcessing::LoadImageBW(string fileName)
 {
@@ -107,6 +110,62 @@ vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
     }
     return chunks;
 }
+vector<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(Rect& source, ushort shortSideDivider)
+{
+	timeRecorder.reset();
+    timeRecorder.start();
+    
+    unsigned shortSide = source.width > source.height ? source.height : source.width;
+    unsigned longSide = source.height + source.width - shortSide;
+    unsigned restShortSide = shortSide % shortSideDivider;
+    unsigned squareSide = (shortSide - restShortSide) / shortSideDivider;
+    unsigned lastWidth = source.width % squareSide;
+    unsigned lastHeight = source.height % squareSide;
+    unsigned numbOfHorizontalSquares = (source.width - lastWidth) / squareSide;
+    unsigned numbOfVerticalSquares = (source.height - lastHeight) / squareSide;
+    
+    unsigned numbOfHorizontalChunks = numbOfHorizontalSquares;
+    unsigned numbOfVerticalChunks = numbOfVerticalSquares;
+
+    if(lastWidth > 0)++numbOfHorizontalChunks;
+    if(lastHeight > 0)++numbOfVerticalChunks;
+    
+    vector<Rect> chunks { numbOfHorizontalChunks * numbOfVerticalChunks};
+
+    unsigned fromLeft = 0, fromTop = 0, width , height;
+
+    unsigned w, h;
+    //rows
+    for(h = 0 ; h < numbOfVerticalSquares; h++ ) {
+        width  = height = squareSide;
+        //cols
+        for(w = 0; w < numbOfHorizontalSquares; w++) {
+            chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, width, height);
+            fromLeft += width;
+        }
+        //last col
+        if(lastWidth > 0) chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, lastWidth, height);
+
+        fromTop += height;
+        fromLeft = 0;
+    }
+    //last row
+    if(lastHeight > 0) {
+        for(w = 0; w < numbOfHorizontalSquares; w++) {
+            chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, width, lastHeight);
+            fromLeft += width;
+        }
+        //last cell
+        if(lastWidth > 0) chunks.at(h * numbOfHorizontalChunks + w) = Rect(fromLeft, fromTop, lastWidth, lastHeight);
+    }
+    string nameOfFunction = typeid(*this).name();
+    nameOfFunction +="::";
+    nameOfFunction += __FUNCTION__;
+    
+    timeRecorder.stop();
+    times[nameOfFunction] = timeRecorder.getTimeMilli();
+    return chunks;
+}
 vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChunks)
 {
     timeRecorder.reset();
@@ -131,6 +190,60 @@ vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChun
     timeSelectWithBlackAndWhitePixels = timeRecorder.getTimeMilli();
     return bwChunks;
 }
+vector<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(vector<Rect>& allRects)
+{
+    timeRecorder.reset();
+    timeRecorder.start();
+    
+    vector<Rect> bwChunks;
+    uchar color;
+    
+    for(auto& rect : allRects) {
+        unsigned white = 0, black = 0;
+        ForEachPixOfUcharSourceInsideRect(rect,[&, this](uchar& p, const int * position) -> void {
+            color = srcUchar.at<uchar>(position[1],position[0]) << 6;
+            color >>= 6;
+            if(color == whiteFg) {
+                white++;
+                return;
+            }
+            if(color == blackFg) {
+                black++;
+            }
+        });
+        if(black && white)bwChunks.push_back(rect);
+    }
+    
+    string nameOfFunction = typeid(*this).name();
+    nameOfFunction +="::";
+    nameOfFunction += __FUNCTION__;
+    
+    timeRecorder.stop();
+    times[nameOfFunction] = timeRecorder.getTimeMilli();
+    return bwChunks;
+}
+Mat EdgeProcessing::RecognizeWhiteAndBlack()
+{
+    timeRecorder.reset();
+    timeRecorder.start();
+    Mat result = Mat::zeros(src.rows,src.cols,CV_8UC1);
+    Rect rect(0,0,src.cols,src.rows);
+    ForEachPixOfSourceImageInsideRect(rect,[ &, this](Vec3b &p, const int * position) -> void {
+        if(IsBlack(p)) {
+            result.at<uchar>(position[1],position[0]) |= blackFg;
+            return;
+        }
+        if(IsWhite(p)) {
+            result.at<uchar>(position[1],position[0]) |= whiteFg;
+        }
+    });
+    timeRecorder.stop();
+    string nameOfFunction = typeid(*this).name();
+    nameOfFunction +="::";
+    nameOfFunction += __FUNCTION__;
+    times[nameOfFunction] = timeRecorder.getTimeMilli();
+    return result;
+}
 void EdgeProcessing::TrimToImageBorder(Rect& rect)
 {
     if(rect.x < 0)rect.x = 0;
@@ -151,6 +264,20 @@ void EdgeProcessing::ForEachPixOfSourceImageInsideRect(Rect& rect, std::function
         for(x = 0; x < rect.width ; x++) {
             pos[0] = rect.x + x;
             auto& pix = src.at<Vec3b>(pos[1], pos[0]);
+            Func(pix, pos);
+        }
+
+    }
+}
+void EdgeProcessing::ForEachPixOfUcharSourceInsideRect(Rect&  rect, std::function<void(uchar&, const int *)> const& Func)
+{
+    unsigned x, y;
+    int pos[2];
+    for(y = 0; y < rect.height ; y++) {
+        pos[1] = rect.y + y;
+        for(x = 0; x < rect.width ; x++) {
+            pos[0] = rect.x + x;
+            uchar& pix = srcUchar.at<uchar>(pos[1], pos[0]);
             Func(pix, pos);
         }
 
@@ -222,6 +349,7 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
             blackWhiteDiff = abs(numBlack - numWhite);
             blackWhiteRatioCurrent = (float)blackWhiteDiff / (numBlack + numWhite);
             if(!needMorePrecision && blackWhiteRatioCurrent > blackWhiteRatioMax) {
+                //skip spots
                 useNewRectangle = false;
                 break;
             }
@@ -254,14 +382,15 @@ vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
         for(i; i < half; i++) dst[i] = 2*i;
         if(isOdd)dst[i] = 1 + 2*(i - 1);
     };
+    /*
     for(auto& rect : rects) {
 
         vector<int> everySecond_x;
         vector<int> everySecond_y;
         EverySecond(rect.x,everySecond_x);
         EverySecond(rect.y,everySecond_y);
-        //https://www.geeksforgeeks.org/bitmasking-in-cpp/
-        
+
+
 
         uchar pix1 = 0;
         uchar pix2 = 0;
@@ -272,16 +401,62 @@ vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
         pix1 |= borderCheckFg;
         isBorder = pix1 & borderCheckFg;
 
-        auto CheckAndSetIfBorder = [](uchar& pix1, uchar& pix2)->void {
-            if (pix2 & borderCheckFg) return;
-            if (pix2 & borderCheckFg) return;
+        auto CheckAndSetIfBorder = [](uchar& pix1, uchar& pix2)->bool {
+            //https://www.geeksforgeeks.org/bitmasking-in-cpp/
+            if (pix2 & borderCheckFg) return true;
+            if (pix2 & borderCheckFg) return true;
             //if colors are different, set both as border
             if(pix1 != pix2) {
                 pix1 |= borderCheckFg;
                 pix2 |= borderCheckFg;
+                return true;
             }
+            return false;
         };
+        map<int,int> swapedDirections;
+        vector<Vec2i> directions {{-1,0},
+            {1,0},
+//            ...
 
+        };
+        short i = 0;
+        for(auto& d : directions) {
+            int hashDir = 10 * d[0] + d[1];
+            swapedDirections[hashDir] = i++;
+        }
+
+//        directions[]
+        auto NextPair = [](Vec2i& p1, Vec2i& p2, Vec2i& p0, directions)->bool {
+            Vec2i currentDir = p2 - p1;
+            bool nextPairAvaliable = true;
+
+            bool insideRect = true;
+            insideRect &= p2[0] >= rect.y;
+            insideRect &= p2[0] <= rect.y + rect.height;
+            insideRect &= p2[1] >= rect.x;
+            insideRect &= p2[1] <= rect.x + rect.width;
+            if(insideRect) {
+                p1 += currentDir;
+                p2 += currentDir;
+                return nextPairAvaliable;
+            }
+            int hashCurrentDir = 10 * currentDir[0] + currentDir[1];
+            directions[hashCurrentDir] =
+
+        };
+//        Vec2i point1 =;
+//        Vec2i point2 =;
+        Vec2i startPoint = point1;
+        bool continueFindBorder = true;
+        while(continueFindBorder) {
+//            direction = DetermineDirection(directionsOrder);
+//            continueFindBorder &= CheckAndSetIfBorder(srcUchar.at(point1),srcUchar(point2));
+//            continueFindBorder &= NextPair(point1,point2,startPoint,directionsOrder);
+        }
+
+//        auto MoveByOnePix = [](Vec2i lastChecked, Vec2i whichNext, function<bool(uchar&, uchar&) Check)->void{
+//
+//        };
 //        -1,-1
 //        for(auto& evSecRow : everySecond_y)
 //        {
@@ -298,6 +473,7 @@ vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
 //            }
 //        }
     }
+    */
 //            auto AddBlacksAddWhites = [ &, this](Vec3b &p, const int * absolutePosition) -> void {
 //    ForEachPixOfSourceImageInsideRect(rect,AddBlacksAddWhites);
     return result;
@@ -363,6 +539,30 @@ void EdgeProcessing::ShowLinesBetweenPoints(vector<Vec2i>& points)
 
 }
 void EdgeProcessing::FindEdgePixels()
+{
+    MakeBlackAndWhiteIfGreenBackground();
+//    imshow("black White Image", src);
+//    waitKey(0);
+    srcUchar = RecognizeWhiteAndBlack();
+    Rect imageRect(0,0,srcUchar.cols, srcUchar.rows);
+    vector<Rect> bigChunks = DivideRectIntoSquaresAndRest(imageRect, shortSideDivider);
+    vector<Rect> bigChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(bigChunks);
+//    ShowSelectedChunks(chunksOnEdge);
+//    vector<Rect> chunksAccurateOnEdge = FindBlackEqualWhiteInNeighborhood(chunksOnEdge);
+
+//    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
+//    vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
+//    ShowLinesBetweenPoints(pointsNotSorted);
+//    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
+    for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
+    cout<<"\n"<<flush;
+    ShowSelectedChunks(bigChunksOnEdge);
+//    ShowLinesBetweenPoints(pointsOrderly);
+    auto chunksSize = bigChunks.size();
+    auto chunksOnEdgeSize = bigChunksOnEdge.size();
+
+}
+void EdgeProcessing::FindEdgePixelsOld()
 {
     MakeBlackAndWhiteIfGreenBackground();
 //    imshow("black White Image", src);
@@ -452,3 +652,4 @@ vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(vector<Rect>& rects)
     }
     return centres;
 }
+

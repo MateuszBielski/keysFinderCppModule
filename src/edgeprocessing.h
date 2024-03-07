@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <map>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
@@ -16,7 +17,7 @@
 #define blackFg 0b00000001
 #define whiteFg 0b00000011
 
-using std::string, std::vector;
+using std::string, std::vector, std::map, std::function;
 using cv::Mat, cv::Rect, cv::Vec3b, cv::Vec2i, cv::TickMeter;
 
 class EdgeProcessing
@@ -28,6 +29,7 @@ private:
 
     TickMeter timeRecorder;
     unsigned edgeDetectInitialRadius = 10;
+    ushort shortSideDivider = 3;
     uchar minWhiteLevel = 255;
     uchar maxBalckLevel = 0;
     float blackWhiteRatioMax = 0.25;
@@ -35,18 +37,24 @@ private:
     double timeArrangeInOrder = 0.0;
     double timeFindBlackEqualWhite = 0.0;
     double timeSelectWithBlackAndWhitePixels = 0.0;
+    map<string,double> times;
 
     void MakeBlackAndWhiteIfGreenBackground();
-    vector<Rect> DivideImageIntoSquareChunks();
-    vector<Rect> SelectWithBlackAndWhitePixels(vector<Rect>& );
-    vector<Rect> FindBlackEqualWhiteInNeighborhood(vector<Rect>& );
+    vector<Rect> DivideImageIntoSquareChunks();//--
+    vector<Rect> DivideRectIntoSquaresAndRest(Rect& src, ushort shortSideDivider);
+    Mat RecognizeWhiteAndBlack();
+    vector<Rect> SelectWithBlackAndWhitePixels(vector<Rect>& );//--
+    vector<Rect> SelectFromSrcUcharWithNotTheSamePixels(vector<Rect>& );
+    vector<Rect> FindBlackEqualWhiteInNeighborhood(vector<Rect>& );//--
+    vector<Rect> CenterRectsOnBorderAndRemoveSpots(Mat&, vector<Rect>& );
     vector<Vec2i> GetCentresOfRectangles(vector<Rect>& );
     vector<Vec2i> GetBlackPixBorderingWithWhite(vector<Rect>& );
     vector<Vec2i> ArrangeInOrder(vector<Vec2i>& );
     void ShowSelectedChunks(vector<Rect>& );
     void ShowLinesBetweenPoints(vector<Vec2i>& );
     void TrimToImageBorder(Rect& );
-    void ForEachPixOfSourceImageInsideRect(Rect& , std::function<void(Vec3b&, const int *)> const& lambda);
+    void ForEachPixOfSourceImageInsideRect(Rect& , function<void(Vec3b&, const int *)> const& lambda);
+    void ForEachPixOfUcharSourceInsideRect(Rect& , function<void(uchar&, const int *)> const& lambda);
     bool IsBlack(const Vec3b &p);
     bool IsWhite(const Vec3b &p);
     bool IsGreen(const Vec3b &p);
@@ -57,6 +65,7 @@ public:
     void LoadParameters(inih::INIReader& config);
     void LoadImageBW(string );
     void FindEdgePixels();
+    void FindEdgePixelsOld();
     void FindBreakingPoints();
 
 protected:
