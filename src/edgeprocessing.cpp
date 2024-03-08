@@ -7,7 +7,7 @@
 namespace fs = std::filesystem;
 
 using namespace cv;
-using std::cout, std::flush, std::move;
+using std::cout, std::flush, std::move, std::to_string;
 
 void EdgeProcessing::LoadParameters(inih::INIReader& r)
 {
@@ -28,11 +28,15 @@ void EdgeProcessing::LoadParameters(inih::INIReader& r)
         otherChannelsRatioMax = r.Get<float>("section1", "otherChannelsRatioMax");
     } catch(std::exception& e) {}
     try {
-        shortSideDivider = r.Get<ushort>("section1", "shortSideDivider");
+        shortSideDivider1 = r.Get<ushort>("section1", "shortSideDivider1");
+    } catch(std::exception& e) {}
+    try {
+        shortSideDivider2 = r.Get<ushort>("section1", "shortSideDivider2");
     } catch(std::exception& e) {}
 }
 void EdgeProcessing::LoadImageBW(string fileName)
 {
+    timeMeasure.functionMeasureStart(__FUNCTION__);
     if(!fs::exists(fileName)) {
         src = CreateGhost();
         return;
@@ -48,10 +52,11 @@ void EdgeProcessing::LoadImageBW(string fileName)
 //    size_t dataSize = (dataEnd - dataBegin) / sizeof(uchar);
 //    ushort nuChannels = src.channels();
 //    size_t nuPixels = dataSize / nuChannels;
-
+    timeMeasure.functionMeasureStop();
 }
 void EdgeProcessing::MakeBlackAndWhiteIfGreenBackground()
 {
+    timeMeasure.functionMeasureStart(__FUNCTION__);
     unsigned green = 0;
     src.forEach<Vec3b>([&,this](Vec3b &pix, const int * position) -> void {
         if(IsGreen(pix)) {
@@ -66,6 +71,7 @@ void EdgeProcessing::MakeBlackAndWhiteIfGreenBackground()
             MakeBlack(pix);
         }
     });
+    timeMeasure.functionMeasureStop();
 }
 vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
 {
@@ -112,8 +118,10 @@ vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
 }
 list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ushort shortSideDivider)
 {
-    timeRecorder.reset();
-    timeRecorder.start();
+//    timeRecorder.reset();
+//    timeRecorder.start();
+    timeMeasure.functionMeasureStart(__FUNCTION__);
+    
     list<Rect> result;
    
 
@@ -169,18 +177,22 @@ list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ush
         for(auto& chunk : chunks)result.push_back(move(chunk));
     }
 
-    string nameOfFunction = typeid(*this).name();
-    nameOfFunction +="::";
-    nameOfFunction += __FUNCTION__;
-
-    timeRecorder.stop();
-    times[nameOfFunction] = timeRecorder.getTimeMilli();
+//    string nameOfFunction = typeid(*this).name();
+//    nameOfFunction +="::";
+//    nameOfFunction += __FUNCTION__;
+//    nameOfFunction += to_string(whichMeasurment++);
+//
+//    timeRecorder.stop();
+//    times[nameOfFunction] = timeRecorder.getTimeMilli();
+    timeMeasure.functionMeasureStop();
     return result;
 }
 vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChunks)
 {
-    timeRecorder.reset();
-    timeRecorder.start();
+//    timeRecorder.reset();
+//    timeRecorder.start();
+    timeMeasure.functionMeasureStart(__FUNCTION__);
+    
     vector<Rect> bwChunks;
     for(auto& rect : allChunks) {
         unsigned white = 0, black = 0;
@@ -197,14 +209,16 @@ vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChun
         });
         if(black && white)bwChunks.push_back(rect);
     }
-    timeRecorder.stop();
-    timeSelectWithBlackAndWhitePixels = timeRecorder.getTimeMilli();
+//    timeRecorder.stop();
+//    timeSelectWithBlackAndWhitePixels = timeRecorder.getTimeMilli();
+    timeMeasure.functionMeasureStop();
     return bwChunks;
 }
 list<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& allRects)
 {
-    timeRecorder.reset();
-    timeRecorder.start();
+//    timeRecorder.reset();
+//    timeRecorder.start();
+    timeMeasure.functionMeasureStart(__FUNCTION__);
 
     list<Rect> bwChunks;
     uchar color;
@@ -226,19 +240,22 @@ list<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& al
         if(black && white)bwChunks.push_back(rect);
     }
 
-    string nameOfFunction = typeid(*this).name();
-    nameOfFunction +="::";
-    nameOfFunction += __FUNCTION__;
+//    string nameOfFunction = typeid(*this).name();
+//    nameOfFunction +="::";
+//    nameOfFunction += __FUNCTION__;
+//    nameOfFunction += to_string(whichMeasurment++);
 
-    timeRecorder.stop();
-    times[nameOfFunction] = timeRecorder.getTimeMilli();
-    auto size = bwChunks.size();
+//    timeRecorder.stop();
+//    times[nameOfFunction] = timeRecorder.getTimeMilli();
+//    auto size = bwChunks.size();
+    timeMeasure.functionMeasureStop();
     return bwChunks;
 }
 Mat EdgeProcessing::RecognizeWhiteAndBlack()
 {
-    timeRecorder.reset();
-    timeRecorder.start();
+    timeMeasure.functionMeasureStart(__FUNCTION__);
+//    timeRecorder.reset();
+//    timeRecorder.start();
     Mat result = Mat::zeros(src.rows,src.cols,CV_8UC1);
     Rect rect(0,0,src.cols,src.rows);
     ForEachPixOfSourceImageInsideRect(rect,[ &, this](Vec3b &p, const int * position) -> void {
@@ -250,11 +267,13 @@ Mat EdgeProcessing::RecognizeWhiteAndBlack()
             result.at<uchar>(position[1],position[0]) |= whiteFg;
         }
     });
-    timeRecorder.stop();
-    string nameOfFunction = typeid(*this).name();
-    nameOfFunction +="::";
-    nameOfFunction += __FUNCTION__;
-    times[nameOfFunction] = timeRecorder.getTimeMilli();
+//    timeRecorder.stop();
+//    string nameOfFunction = typeid(*this).name();
+//    nameOfFunction +="::";
+//    nameOfFunction += __FUNCTION__;    
+//    nameOfFunction += to_string(whichMeasurment++);
+//    times[nameOfFunction] = timeRecorder.getTimeMilli();
+    timeMeasure.functionMeasureStop();
     return result;
 }
 void EdgeProcessing::TrimToImageBorder(Rect& rect)
@@ -386,6 +405,7 @@ list<Rect> EdgeProcessing::CenterRectsOnBorderAndRemoveSpots(list<Rect>& selecte
     string nameOfFunction = typeid(*this).name();
     nameOfFunction +="::";
     nameOfFunction += __FUNCTION__;
+    nameOfFunction += to_string(whichMeasurment++);
     times[nameOfFunction] = timeRecorder.getTimeMilli();
     return centeredChunks;
 }
@@ -651,15 +671,15 @@ void EdgeProcessing::FindEdgePixels()
 //    waitKey(0);
     srcUchar = RecognizeWhiteAndBlack();
     list<Rect> imageRect {Rect (0,0,srcUchar.cols, srcUchar.rows)};
-    list<Rect> bigChunks = DivideRectIntoSquaresAndRest(imageRect, shortSideDivider);
+    list<Rect> bigChunks = DivideRectIntoSquaresAndRest(imageRect, shortSideDivider1);
     list<Rect> bigChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(bigChunks);
 //    ShowSelectedChunks(chunksOnEdge);
     list<Rect> chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(bigChunksOnEdge);
     
-    for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
-    cout<<"\n"<<flush;
+//    for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
+//    cout<<"\n"<<flush;
     ShowSelectedChunks(chunksAccurateOnEdge);
-    list<Rect> smallChunks = DivideRectIntoSquaresAndRest(chunksAccurateOnEdge, shortSideDivider);
+    list<Rect> smallChunks = DivideRectIntoSquaresAndRest(chunksAccurateOnEdge, shortSideDivider2);
     list<Rect> smallChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(smallChunks);
     auto smallChunksSize = smallChunks.size();
     auto smallChunksOnEdgeSize = smallChunksOnEdge.size();
@@ -669,8 +689,9 @@ void EdgeProcessing::FindEdgePixels()
     //vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
 //    ShowLinesBetweenPoints(pointsNotSorted);
     vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
-    for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
-    cout<<"\n"<<flush;
+    timeMeasure.ShowMeasurments();
+//    for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
+//    cout<<"\n"<<flush;
     //ShowSelectedChunks(chunksAccurateOnEdge);
     ShowLinesBetweenPoints(pointsOrderly);
 }

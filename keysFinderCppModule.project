@@ -21,6 +21,8 @@
     <File Name="src/edgeprocessing.cpp"/>
     <File Name="src/main.cpp"/>
     <File Name="config.ini"/>
+    <File Name="src/timemeasure.cpp"/>
+    <File Name="src/timemeasure.h"/>
   </VirtualDirectory>
   <VirtualDirectory Name="include">
     <VirtualDirectory Name="ini">

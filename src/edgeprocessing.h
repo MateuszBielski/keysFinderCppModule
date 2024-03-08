@@ -12,6 +12,7 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/core/utility.hpp>
 #include "ini/ini.h"
+#include "timemeasure.h"
 
 #define colorCheckFg 0b00000001
 #define borderCheckFg 0b00000100
@@ -28,16 +29,21 @@ private:
     Mat src;
     Mat srcUchar;
 
-    TickMeter timeRecorder;
     unsigned edgeDetectInitialRadius = 10;
-    ushort shortSideDivider = 3;
+    ushort shortSideDivider1 = 3;
+    ushort shortSideDivider2 = 3;
     uchar minWhiteLevel = 255;
     uchar maxBalckLevel = 0;
     float blackWhiteRatioMax = 0.25;
     float otherChannelsRatioMax = 0.3;
+    
+    TimeMeasure timeMeasure;
+    
+    TickMeter timeRecorder;
     double timeArrangeInOrder = 0.0;
     double timeFindBlackEqualWhite = 0.0;
     double timeSelectWithBlackAndWhitePixels = 0.0;
+    unsigned whichMeasurment = 0;
     map<string,double> times;
 
     void MakeBlackAndWhiteIfGreenBackground();

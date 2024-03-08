@@ -11,6 +11,7 @@ project(keysFinderCppModule)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_BUILD_TYPE Debug)
+#set(CMAKE_BUILD_TYPE Release)
 
 
 if (MSVC)
@@ -96,6 +97,7 @@ set(includes
 set ( CXX_SRCS
     src/main.cpp
     src/edgeprocessing.cpp
+    src/timemeasure.cpp
 )
 
 #add_compile_definitions(_USE_MATH_DEFINES)#for using M_PI constant
