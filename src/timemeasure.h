@@ -18,16 +18,14 @@ class TimeMeasure
 {
 private:
     TickMeter timeRecorder;
-//    map<string,double> times;
     deque<timeTuple> times;
-    deque<int> dInt;
-//    deque<tuple<unsigned,string,double>> times;
     unsigned whichMeasurment = 0;
     string currentName;
 
 public:
     void functionMeasureStop();
     void functionMeasureStart(string );
+//    void functionMeasureStart(const char * );
     void ShowMeasurments();
 protected:
 

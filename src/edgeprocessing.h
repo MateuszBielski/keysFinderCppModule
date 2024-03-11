@@ -39,7 +39,7 @@ private:
     
     TimeMeasure timeMeasure;
     
-    TickMeter timeRecorder;
+//    TickMeter timeRecorder;
     double timeArrangeInOrder = 0.0;
     double timeFindBlackEqualWhite = 0.0;
     double timeSelectWithBlackAndWhitePixels = 0.0;

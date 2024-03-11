@@ -46,12 +46,6 @@ void EdgeProcessing::LoadImageBW(string fileName)
 
     srcUchar = Mat::zeros(src.rows,src.cols,CV_8UC1);
 
-//    uchar * dataBegin = src.data;
-//    const uchar * dataEnd = src.dataend;
-//
-//    size_t dataSize = (dataEnd - dataBegin) / sizeof(uchar);
-//    ushort nuChannels = src.channels();
-//    size_t nuPixels = dataSize / nuChannels;
     timeMeasure.functionMeasureStop();
 }
 void EdgeProcessing::MakeBlackAndWhiteIfGreenBackground()
@@ -118,12 +112,10 @@ vector<Rect> EdgeProcessing::DivideImageIntoSquareChunks()
 }
 list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ushort shortSideDivider)
 {
-//    timeRecorder.reset();
-//    timeRecorder.start();
     timeMeasure.functionMeasureStart(__FUNCTION__);
-    
+
     list<Rect> result;
-   
+
 
     for(auto& source : sources) {
 
@@ -131,8 +123,7 @@ list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ush
         unsigned longSide = source.height + source.width - shortSide;
         unsigned restShortSide = shortSide % shortSideDivider;
         unsigned squareSide = (shortSide - restShortSide) / shortSideDivider;
-        if (!squareSide)
-        {
+        if (!squareSide) {
             continue;
         }
         unsigned lastWidth = source.width % squareSide;
@@ -177,22 +168,13 @@ list<Rect> EdgeProcessing::DivideRectIntoSquaresAndRest(list<Rect>& sources, ush
         for(auto& chunk : chunks)result.push_back(move(chunk));
     }
 
-//    string nameOfFunction = typeid(*this).name();
-//    nameOfFunction +="::";
-//    nameOfFunction += __FUNCTION__;
-//    nameOfFunction += to_string(whichMeasurment++);
-//
-//    timeRecorder.stop();
-//    times[nameOfFunction] = timeRecorder.getTimeMilli();
     timeMeasure.functionMeasureStop();
     return result;
 }
 vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChunks)
 {
-//    timeRecorder.reset();
-//    timeRecorder.start();
     timeMeasure.functionMeasureStart(__FUNCTION__);
-    
+
     vector<Rect> bwChunks;
     for(auto& rect : allChunks) {
         unsigned white = 0, black = 0;
@@ -216,8 +198,6 @@ vector<Rect> EdgeProcessing::SelectWithBlackAndWhitePixels(vector<Rect>& allChun
 }
 list<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& allRects)
 {
-//    timeRecorder.reset();
-//    timeRecorder.start();
     timeMeasure.functionMeasureStart(__FUNCTION__);
 
     list<Rect> bwChunks;
@@ -240,22 +220,12 @@ list<Rect> EdgeProcessing::SelectFromSrcUcharWithNotTheSamePixels(list<Rect>& al
         if(black && white)bwChunks.push_back(rect);
     }
 
-//    string nameOfFunction = typeid(*this).name();
-//    nameOfFunction +="::";
-//    nameOfFunction += __FUNCTION__;
-//    nameOfFunction += to_string(whichMeasurment++);
-
-//    timeRecorder.stop();
-//    times[nameOfFunction] = timeRecorder.getTimeMilli();
-//    auto size = bwChunks.size();
     timeMeasure.functionMeasureStop();
     return bwChunks;
 }
 Mat EdgeProcessing::RecognizeWhiteAndBlack()
 {
     timeMeasure.functionMeasureStart(__FUNCTION__);
-//    timeRecorder.reset();
-//    timeRecorder.start();
     Mat result = Mat::zeros(src.rows,src.cols,CV_8UC1);
     Rect rect(0,0,src.cols,src.rows);
     ForEachPixOfSourceImageInsideRect(rect,[ &, this](Vec3b &p, const int * position) -> void {
@@ -267,12 +237,7 @@ Mat EdgeProcessing::RecognizeWhiteAndBlack()
             result.at<uchar>(position[1],position[0]) |= whiteFg;
         }
     });
-//    timeRecorder.stop();
-//    string nameOfFunction = typeid(*this).name();
-//    nameOfFunction +="::";
-//    nameOfFunction += __FUNCTION__;    
-//    nameOfFunction += to_string(whichMeasurment++);
-//    times[nameOfFunction] = timeRecorder.getTimeMilli();
+
     timeMeasure.functionMeasureStop();
     return result;
 }
@@ -317,12 +282,10 @@ void EdgeProcessing::ForEachPixOfUcharSourceInsideRect(Rect&  rect, std::functio
 }
 list<Rect> EdgeProcessing::CenterRectsOnBorderAndRemoveSpots(list<Rect>& selected)
 {
-    timeRecorder.reset();
-    timeRecorder.start();
+    timeMeasure.functionMeasureStart(__FUNCTION__);
     list<Rect> centeredChunks;
     unsigned numChunks = 0;
     for(auto& rect : selected) {
-//        Rect rect {sel};
         bool needMorePrecision = true;
         bool lessThanSecondCycle = true;
         bool useNewRectangle;
@@ -346,7 +309,6 @@ list<Rect> EdgeProcessing::CenterRectsOnBorderAndRemoveSpots(list<Rect>& selecte
             numWhite = 0;
             numBlack = 0;
             auto AddBlacksAddWhites = [ &, this](uchar& p, const int * absolutePosition) -> void {
-                //color = srcUchar.at<uchar>(absolutePosition[1],absolutePosition[0]) << 6;
                 color = p << 6;
                 color >>= 6;
                 if(color == blackFg) {
@@ -401,19 +363,12 @@ list<Rect> EdgeProcessing::CenterRectsOnBorderAndRemoveSpots(list<Rect>& selecte
         numChunks++;
         if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
     }
-    timeRecorder.stop();
-    string nameOfFunction = typeid(*this).name();
-    nameOfFunction +="::";
-    nameOfFunction += __FUNCTION__;
-    nameOfFunction += to_string(whichMeasurment++);
-    times[nameOfFunction] = timeRecorder.getTimeMilli();
+    timeMeasure.functionMeasureStop();
     return centeredChunks;
 }
 
 vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& selected)
 {
-    timeRecorder.reset();
-    timeRecorder.start();
     vector<Rect> centeredChunks;
     unsigned numChunks = 0;
     for(auto& sel : selected) {
@@ -492,8 +447,6 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
         numChunks++;
         if(useNewRectangle && rect.width && rect.height)centeredChunks.push_back(rect);
     }
-    timeRecorder.stop();
-    timeFindBlackEqualWhite = timeRecorder.getTimeMilli();
     return centeredChunks;
 }
 vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
@@ -606,8 +559,7 @@ vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
 }
 vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
 {
-    timeRecorder.reset();
-    timeRecorder.start();
+    timeMeasure.functionMeasureStart(__FUNCTION__);
     vector<int> indices(src.cols,-1);
     unsigned which = 0;
     for(auto& p : notOrderly) {
@@ -621,8 +573,7 @@ vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
             orderly.push_back(p);
         }
     }
-    timeRecorder.stop();
-    timeArrangeInOrder = timeRecorder.getTimeMilli();
+    timeMeasure.functionMeasureStop();
     return orderly;
 }
 void EdgeProcessing::ShowSelectedChunks(list<Rect>& selected)
@@ -675,23 +626,20 @@ void EdgeProcessing::FindEdgePixels()
     list<Rect> bigChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(bigChunks);
 //    ShowSelectedChunks(chunksOnEdge);
     list<Rect> chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(bigChunksOnEdge);
-    
-//    for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
-//    cout<<"\n"<<flush;
+
     ShowSelectedChunks(chunksAccurateOnEdge);
     list<Rect> smallChunks = DivideRectIntoSquaresAndRest(chunksAccurateOnEdge, shortSideDivider2);
     list<Rect> smallChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(smallChunks);
     auto smallChunksSize = smallChunks.size();
     auto smallChunksOnEdgeSize = smallChunksOnEdge.size();
     chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(smallChunksOnEdge);
-    
+
     vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
     //vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
 //    ShowLinesBetweenPoints(pointsNotSorted);
     vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
     timeMeasure.ShowMeasurments();
-//    for(auto& t : times) cout<<"\ntime of "<<t.first<<" "<<t.second<<"ms";
-//    cout<<"\n"<<flush;
+    
     //ShowSelectedChunks(chunksAccurateOnEdge);
     ShowLinesBetweenPoints(pointsOrderly);
 }
@@ -782,7 +730,7 @@ vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(list<Rect>& rects)
     for(auto& r : rects) {
         int x = (float)round(r.x + r.width / 2.0);
         int y = (float)round(r.y + r.height / 2.0);
-        *iter++ = Vec2i{ x,y };
+        *iter++ = Vec2i { x,y };
         //centres.push_back(Vec2i {x,y});
     }
     return centres;
