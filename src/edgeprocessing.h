@@ -16,6 +16,7 @@
 
 #define colorCheckFg 0b00000001
 #define borderCheckFg 0b00000100
+#define sortedBorderFg 1 >> 3
 #define blackFg 0b00000001
 #define whiteFg 0b00000011
 
@@ -55,7 +56,9 @@ private:
     vector<Rect> FindBlackEqualWhiteInNeighborhood(vector<Rect>& );//--
     list<Rect> CenterRectsOnBorderAndRemoveSpots(list<Rect>& );
     vector<Vec2i> GetCentresOfRectangles(list<Rect>& );
+    void SetFlagsOnSrcUchar(vector<Vec2i>& points,int flag);
     vector<Vec2i> GetBlackPixBorderingWithWhite(vector<Rect>& );
+    vector<Vec2i> ArrangeInOrderOld(vector<Vec2i>& );
     vector<Vec2i> ArrangeInOrder(vector<Vec2i>& );
     void ShowSelectedChunks(list<Rect>& );
     void ShowLinesBetweenPoints(vector<Vec2i>& );

@@ -449,6 +449,221 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
     }
     return centeredChunks;
 }
+
+vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
+{
+    timeMeasure.functionMeasureStart(__FUNCTION__);
+    Vec2i point = *notOrderly.begin();
+    //determine directon for neighbour detection
+    //direct to short, further border.
+    //convention P(y,x);
+    bool shortSideIsVertical = src.cols > src.rows ? true : false;
+    int distanceBetweenShortSides = shortSideIsVertical ? src.cols : src.rows;
+    int coordAlongLongSide = shortSideIsVertical ? point[1] : point[0];
+    bool isForward = (float)distanceBetweenShortSides / coordAlongLongSide > 2.0 ? true : false;
+    Vec<char,2> direction;
+    direction = shortSideIsVertical ? Vec<char,2>(0,1) : Vec<char,2>(1,0);
+    if(!isForward) direction *= -1;
+
+//    uchar& pColor = srcUchar.at(point) ;
+//    pColor |= sortedBorderFg;
+    srcUchar.at<uchar>(point) |= sortedBorderFg;
+    //In determined direction checking in distance 1 pix, 2 pix and so on...
+    bool nextNotFound = true;
+    while(nextNotFound) {
+        nextNotFound = false;
+    }
+
+
+    //has started from border?
+    timeMeasure.functionMeasureStop();
+    return vector<Vec2i>();
+}
+vector<Vec2i> EdgeProcessing::ArrangeInOrderOld(vector<Vec2i>& notOrderly)
+{
+    timeMeasure.functionMeasureStart(__FUNCTION__);
+    vector<int> indices(src.cols,-1);
+    unsigned which = 0;
+    for(auto& p : notOrderly) {
+        indices[p[0]] = which++;
+    }
+
+    vector<Vec2i> orderly;
+    for(int i : indices) {
+        if(i > -1) {
+            Vec2i p = notOrderly[i];
+            orderly.push_back(p);
+        }
+    }
+    timeMeasure.functionMeasureStop();
+    return orderly;
+}
+void EdgeProcessing::ShowSelectedChunks(list<Rect>& selected)
+{
+    Mat redColored = src.clone();
+    unsigned x, y, num = 0;
+    for(auto& sel : selected) {
+        Mat chunk {redColored, sel};
+
+        chunk.forEach<Vec3b>([ &, this](Vec3b &pix, const int * position) -> void {
+            if(IsBlack(pix)) {
+                pix[2] = 190;
+            } else {
+                pix[0] = 41;
+                pix[1] = 41;
+            }
+            num++;
+        });
+    }
+    imshow("original Image", redColored);
+    waitKey(0);
+}
+void EdgeProcessing::ShowLinesBetweenPoints(vector<Vec2i>& points)
+{
+    Mat imgWithLine = src.clone();
+    Vec3b color {0,255,0};
+    if(points.size()) {
+        Vec2i p0 = *(points.begin());
+        Vec2i p1;
+        unsigned nuPoints = points.size();
+        unsigned i = 1;
+        for(i ; i < nuPoints ; i++) {
+            p1 = points[i];
+            line(imgWithLine,p0,p1,color);
+            p0 = p1;
+        }
+    }
+    imshow("line", imgWithLine);
+    waitKey(0);
+
+}
+void EdgeProcessing::FindEdgePixels()
+{
+    MakeBlackAndWhiteIfGreenBackground();
+//    imshow("black White Image", src);
+//    waitKey(0);
+    srcUchar = RecognizeWhiteAndBlack();
+    list<Rect> imageRect {Rect (0,0,srcUchar.cols, srcUchar.rows)};
+    list<Rect> bigChunks = DivideRectIntoSquaresAndRest(imageRect, shortSideDivider1);
+    list<Rect> bigChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(bigChunks);
+//    ShowSelectedChunks(chunksOnEdge);
+    list<Rect> chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(bigChunksOnEdge);
+
+    ShowSelectedChunks(chunksAccurateOnEdge);
+    list<Rect> smallChunks = DivideRectIntoSquaresAndRest(chunksAccurateOnEdge, shortSideDivider2);
+    list<Rect> smallChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(smallChunks);
+    auto smallChunksSize = smallChunks.size();
+    auto smallChunksOnEdgeSize = smallChunksOnEdge.size();
+    chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(smallChunksOnEdge);
+
+    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
+    SetFlagsOnSrcUchar(pointsNotSorted, borderCheckFg);
+    //vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
+//    ShowLinesBetweenPoints(pointsNotSorted);
+    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
+    timeMeasure.ShowMeasurments();
+
+    //ShowSelectedChunks(chunksAccurateOnEdge);
+    ShowLinesBetweenPoints(pointsOrderly);
+}
+void EdgeProcessing::FindEdgePixelsOld()
+{
+    MakeBlackAndWhiteIfGreenBackground();
+//    imshow("black White Image", src);
+//    waitKey(0);
+    vector<Rect> chunks = DivideImageIntoSquareChunks();
+    vector<Rect> chunksOnEdge = SelectWithBlackAndWhitePixels(chunks);
+//    ShowSelectedChunks(chunksOnEdge);
+    vector<Rect> chunksAccurateOnEdge = FindBlackEqualWhiteInNeighborhood(chunksOnEdge);
+
+//    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
+    vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
+//    ShowLinesBetweenPoints(pointsNotSorted);
+    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
+    cout<<"\ntime of SelectWithBlackAndWhitePixels: "<<timeSelectWithBlackAndWhitePixels<<"ms";
+    cout<<"\ntime of FindBlackEqualWhite: "<<timeFindBlackEqualWhite<<"ms";
+    cout<<"\ntime of ArrangeInOrder: "<<timeArrangeInOrder<<"ms";
+    cout<<"\n"<<flush;
+//    ShowSelectedChunks(chunksAccurateOnEdge);
+    ShowLinesBetweenPoints(pointsOrderly);
+    auto chunksSize = chunks.size();
+    auto chunksOnEdgeSize = chunksOnEdge.size();
+
+}
+void EdgeProcessing::FindBreakingPoints()
+{
+}
+
+bool EdgeProcessing::IsBlack(const Vec3b& p)
+{
+    if(
+        p[0] <= maxBalckLevel &&
+        p[1] <= maxBalckLevel &&
+        p[2] <= maxBalckLevel
+    ) return true;
+    return false;
+}
+bool EdgeProcessing::IsWhite(const Vec3b& p)
+{
+    if(
+        p[0] >= minWhiteLevel &&
+        p[1] >= minWhiteLevel &&
+        p[2] >= minWhiteLevel
+    )return true;
+    return false;
+}
+bool EdgeProcessing::IsGreen(const Vec3b& p)
+{
+    if(!p[1])return false;
+    float redDivGreen = (float)p[2] / p[1];
+    float blueDivGreen = (float)p[0] / p[1];
+    if(
+        redDivGreen < otherChannelsRatioMax &&
+        blueDivGreen < otherChannelsRatioMax
+    )return true;
+    return false;
+}
+void EdgeProcessing::MakeWhite(Vec3b& p)
+{
+    p[0] = 255;
+    p[1] = 255;
+    p[2] = 255;
+}
+void EdgeProcessing::MakeBlack(Vec3b& p)
+{
+    p[0] = 0;
+    p[1] = 0;
+    p[2] = 0;
+}
+Mat EdgeProcessing::CreateGhost()
+{
+    Mat ghost(100,100,CV_8UC3);
+    uchar randColor[3];//not inited make random
+    ghost.forEach<Vec3b>([&, this](Vec3b &pix, const int * position) -> void {
+        pix[0] = randColor[0];
+        pix[1] = randColor[1];
+        pix[2] = randColor[2];
+    });
+    return ghost;
+}
+vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(list<Rect>& rects)
+{
+    vector<Vec2i> centres(rects.size());
+    auto iter = centres.begin();
+    for(auto& r : rects) {
+        int x = (float)round(r.x + r.width / 2.0);
+        int y = (float)round(r.y + r.height / 2.0);
+        *iter++ = Vec2i { x,y };
+        //centres.push_back(Vec2i {x,y});
+    }
+    return centres;
+}
+void EdgeProcessing::SetFlagsOnSrcUchar(vector<Vec2i>& points, int flag)
+{
+    for(auto& p : points) {
+        srcUchar.at<uchar>(p) |= flag;
+    }
+}
 vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
 {
     vector<Vec2i> result;
@@ -556,182 +771,4 @@ vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
 //            auto AddBlacksAddWhites = [ &, this](Vec3b &p, const int * absolutePosition) -> void {
 //    ForEachPixOfSourceImageInsideRect(rect,AddBlacksAddWhites);
     return result;
-}
-vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
-{
-    timeMeasure.functionMeasureStart(__FUNCTION__);
-    vector<int> indices(src.cols,-1);
-    unsigned which = 0;
-    for(auto& p : notOrderly) {
-        indices[p[0]] = which++;
-    }
-
-    vector<Vec2i> orderly;
-    for(int i : indices) {
-        if(i > -1) {
-            Vec2i p = notOrderly[i];
-            orderly.push_back(p);
-        }
-    }
-    timeMeasure.functionMeasureStop();
-    return orderly;
-}
-void EdgeProcessing::ShowSelectedChunks(list<Rect>& selected)
-{
-    Mat redColored = src.clone();
-    unsigned x, y, num = 0;
-    for(auto& sel : selected) {
-        Mat chunk {redColored, sel};
-
-        chunk.forEach<Vec3b>([ &, this](Vec3b &pix, const int * position) -> void {
-            if(IsBlack(pix)) {
-                pix[2] = 190;
-            } else {
-                pix[0] = 41;
-                pix[1] = 41;
-            }
-            num++;
-        });
-    }
-    imshow("original Image", redColored);
-    waitKey(0);
-}
-void EdgeProcessing::ShowLinesBetweenPoints(vector<Vec2i>& points)
-{
-    Mat imgWithLine = src.clone();
-    Vec3b color {0,255,0};
-    if(points.size()) {
-        Vec2i p0 = *(points.begin());
-        Vec2i p1;
-        unsigned nuPoints = points.size();
-        unsigned i = 1;
-        for(i ; i < nuPoints ; i++) {
-            p1 = points[i];
-            line(imgWithLine,p0,p1,color);
-            p0 = p1;
-        }
-    }
-    imshow("line", imgWithLine);
-    waitKey(0);
-
-}
-void EdgeProcessing::FindEdgePixels()
-{
-    MakeBlackAndWhiteIfGreenBackground();
-//    imshow("black White Image", src);
-//    waitKey(0);
-    srcUchar = RecognizeWhiteAndBlack();
-    list<Rect> imageRect {Rect (0,0,srcUchar.cols, srcUchar.rows)};
-    list<Rect> bigChunks = DivideRectIntoSquaresAndRest(imageRect, shortSideDivider1);
-    list<Rect> bigChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(bigChunks);
-//    ShowSelectedChunks(chunksOnEdge);
-    list<Rect> chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(bigChunksOnEdge);
-
-    ShowSelectedChunks(chunksAccurateOnEdge);
-    list<Rect> smallChunks = DivideRectIntoSquaresAndRest(chunksAccurateOnEdge, shortSideDivider2);
-    list<Rect> smallChunksOnEdge = SelectFromSrcUcharWithNotTheSamePixels(smallChunks);
-    auto smallChunksSize = smallChunks.size();
-    auto smallChunksOnEdgeSize = smallChunksOnEdge.size();
-    chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(smallChunksOnEdge);
-
-    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
-    //vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
-//    ShowLinesBetweenPoints(pointsNotSorted);
-    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
-    timeMeasure.ShowMeasurments();
-    
-    //ShowSelectedChunks(chunksAccurateOnEdge);
-    ShowLinesBetweenPoints(pointsOrderly);
-}
-void EdgeProcessing::FindEdgePixelsOld()
-{
-    MakeBlackAndWhiteIfGreenBackground();
-//    imshow("black White Image", src);
-//    waitKey(0);
-    vector<Rect> chunks = DivideImageIntoSquareChunks();
-    vector<Rect> chunksOnEdge = SelectWithBlackAndWhitePixels(chunks);
-//    ShowSelectedChunks(chunksOnEdge);
-    vector<Rect> chunksAccurateOnEdge = FindBlackEqualWhiteInNeighborhood(chunksOnEdge);
-
-//    vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
-    vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
-//    ShowLinesBetweenPoints(pointsNotSorted);
-    vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
-    cout<<"\ntime of SelectWithBlackAndWhitePixels: "<<timeSelectWithBlackAndWhitePixels<<"ms";
-    cout<<"\ntime of FindBlackEqualWhite: "<<timeFindBlackEqualWhite<<"ms";
-    cout<<"\ntime of ArrangeInOrder: "<<timeArrangeInOrder<<"ms";
-    cout<<"\n"<<flush;
-//    ShowSelectedChunks(chunksAccurateOnEdge);
-    ShowLinesBetweenPoints(pointsOrderly);
-    auto chunksSize = chunks.size();
-    auto chunksOnEdgeSize = chunksOnEdge.size();
-
-}
-void EdgeProcessing::FindBreakingPoints()
-{
-}
-
-bool EdgeProcessing::IsBlack(const Vec3b& p)
-{
-    if(
-        p[0] <= maxBalckLevel &&
-        p[1] <= maxBalckLevel &&
-        p[2] <= maxBalckLevel
-    ) return true;
-    return false;
-}
-bool EdgeProcessing::IsWhite(const Vec3b& p)
-{
-    if(
-        p[0] >= minWhiteLevel &&
-        p[1] >= minWhiteLevel &&
-        p[2] >= minWhiteLevel
-    )return true;
-    return false;
-}
-bool EdgeProcessing::IsGreen(const Vec3b& p)
-{
-    if(!p[1])return false;
-    float redDivGreen = (float)p[2] / p[1];
-    float blueDivGreen = (float)p[0] / p[1];
-    if(
-        redDivGreen < otherChannelsRatioMax &&
-        blueDivGreen < otherChannelsRatioMax
-    )return true;
-    return false;
-}
-void EdgeProcessing::MakeWhite(Vec3b& p)
-{
-    p[0] = 255;
-    p[1] = 255;
-    p[2] = 255;
-}
-void EdgeProcessing::MakeBlack(Vec3b& p)
-{
-    p[0] = 0;
-    p[1] = 0;
-    p[2] = 0;
-}
-Mat EdgeProcessing::CreateGhost()
-{
-    Mat ghost(100,100,CV_8UC3);
-    uchar randColor[3];//not inited make random
-    ghost.forEach<Vec3b>([&, this](Vec3b &pix, const int * position) -> void {
-        pix[0] = randColor[0];
-        pix[1] = randColor[1];
-        pix[2] = randColor[2];
-    });
-    return ghost;
-}
-vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(list<Rect>& rects)
-{
-    vector<Vec2i> centres(rects.size());
-    auto iter = centres.begin();
-    for(auto& r : rects) {
-        int x = (float)round(r.x + r.width / 2.0);
-        int y = (float)round(r.y + r.height / 2.0);
-        *iter++ = Vec2i { x,y };
-        //centres.push_back(Vec2i {x,y});
-    }
-    return centres;
 }
