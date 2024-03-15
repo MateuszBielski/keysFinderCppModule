@@ -16,7 +16,7 @@
 
 #define colorCheckFg 0b00000001
 #define borderCheckFg 0b00000100
-#define sortedBorderFg 1 >> 3
+#define nodeSortedFg 1 >> 3
 #define blackFg 0b00000001
 #define whiteFg 0b00000011
 
@@ -70,6 +70,8 @@ private:
     bool IsGreen(const Vec3b &p);
     void MakeWhite(Vec3b &p);
     void MakeBlack(Vec3b &p);
+    bool InsideRect(Vec2i&, Mat&);
+    bool InsideRect(Vec2i&, Rect&);
     Mat CreateGhost();
 public:
     void LoadParameters(inih::INIReader& config);

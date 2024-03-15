@@ -453,31 +453,142 @@ vector<Rect> EdgeProcessing::FindBlackEqualWhiteInNeighborhood(vector<Rect>& sel
 vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
 {
     timeMeasure.functionMeasureStart(__FUNCTION__);
+    uchar nodeFlag = borderCheckFg;
+    SetFlagsOnSrcUchar(notOrderly, nodeFlag);
+
     Vec2i point = *notOrderly.begin();
+    Vec2i transPoint(point[1],point[0]);
+    vector<Vec2i> orderly(notOrderly.size());
     //determine directon for neighbour detection
     //direct to short, further border.
-    //convention P(y,x);
+    //convention: incoming points are P(x,y), but Mat.at uses y,x
     bool shortSideIsVertical = src.cols > src.rows ? true : false;
     int distanceBetweenShortSides = shortSideIsVertical ? src.cols : src.rows;
-    int coordAlongLongSide = shortSideIsVertical ? point[1] : point[0];
+    int coordAlongLongSide = shortSideIsVertical ? point[0] : point[1];
     bool isForward = (float)distanceBetweenShortSides / coordAlongLongSide > 2.0 ? true : false;
-    Vec<char,2> direction;
-    direction = shortSideIsVertical ? Vec<char,2>(0,1) : Vec<char,2>(1,0);
+    //transposed convention
+    Vec2i direction = shortSideIsVertical ? Vec2i(0,1) : Vec2i(1,0);
     if(!isForward) direction *= -1;
 
 //    uchar& pColor = srcUchar.at(point) ;
 //    pColor |= sortedBorderFg;
-    srcUchar.at<uchar>(point) |= sortedBorderFg;
-    //In determined direction checking in distance 1 pix, 2 pix and so on...
-    bool nextNotFound = true;
-    while(nextNotFound) {
-        nextNotFound = false;
-    }
+    srcUchar.at<uchar>(transPoint) |= nodeSortedFg;
+    bool possibleOtherNode = true;
+    int step = 1;
+    uchar pointVal;
+    Vec2i pointToCheck, centerBreak, leftBreak, rightBreak;
+    Rect sourceBorders(0,0,src.cols,src.rows);
+    unsigned whichNodeSorted = 0;
+    orderly[whichNodeSorted++] = transPoint;
+    cout<<"\n"<<transPoint[1]<<", "<<transPoint[0];
+    while(possibleOtherNode) {
 
+        int distance = 1;
+        bool nextNotFound = true;
+        while(nextNotFound) {
+            //In determined direction checking in distance 1 pix, 2 pix and so on...
+//        straight
+            pointToCheck = transPoint + direction * step * distance;
+            if(!InsideRect(pointToCheck,sourceBorders))break;
+            pointVal = srcUchar.at<uchar>(pointToCheck);
+            if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
+                nextNotFound = false;
+                pointVal |= nodeSortedFg;
+                transPoint = pointToCheck;
+                break;
+            }
+            centerBreak = pointToCheck;
+            //turn left
+            Vec2i localLeft(direction[1],-1 * direction[0]);
+            bool backLeft = true;
+            for(int l = 1; l <= distance ; l++) {
+                pointToCheck = centerBreak + localLeft * step * l;
+                leftBreak = pointToCheck;
+                if(!InsideRect(pointToCheck,sourceBorders)) {
+                    backLeft = false;
+                    break;
+                }
+                pointVal = srcUchar.at<uchar>(pointToCheck);
+                if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
+                    nextNotFound = false;
+                    pointVal |= nodeSortedFg;
+                    distance = 0;
+                    transPoint = pointToCheck;
+                }
+            }
+            //back and turn right
+            Vec2i localRight = -1 * localLeft;
+            bool backRight = true;
+            for(int r = 1; r <= distance ; r++) {
+                pointToCheck = centerBreak + localLeft * step * r;
+                rightBreak = pointToCheck;
+                if(!InsideRect(pointToCheck,sourceBorders)) {
+                    backRight = false;
+                    break;
+                }
+                pointVal = srcUchar.at<uchar>(pointToCheck);
+                if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
+                    nextNotFound = false;
+                    pointVal|= nodeSortedFg;
+                    distance = 0;
+                    transPoint = pointToCheck;
+                }
+            }
+            Vec2i backDir = -1 * direction;
+            //again left and turn left
+            if(backLeft) {
+                for(int l = 1 ; l <= distance ; l++) {
+                    pointToCheck = leftBreak + backDir * step * l;
+                    if(!InsideRect(pointToCheck,sourceBorders)) {
+                        break;
+                    }
+                    pointVal = srcUchar.at<uchar>(pointToCheck);
+                    if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
+                        nextNotFound = false;
+                        pointVal |= nodeSortedFg;
+                        distance = 0;
+                        transPoint = pointToCheck;
+                    }
+                }
+            }
+            //again right and turn right
+            if(backRight) {
+                for(int r = 1; r <= distance ; r++) {
+                    pointToCheck = rightBreak + backDir * step * r;
+                    if(!InsideRect(pointToCheck,sourceBorders)) {
+                        break;
+                    }
+                    pointVal = srcUchar.at<uchar>(pointToCheck);
+                    if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
+                        nextNotFound = false;
+                        pointVal |= nodeSortedFg;
+                        distance = 0;
+                        transPoint = pointToCheck;
+                    }
+                }
+            }
+            distance++;
+            if(transPoint == pointToCheck) {
+                orderly[whichNodeSorted++] = Vec2i(transPoint[1],transPoint[0]);
+                cout<<"\n"<<transPoint[1]<<", "<<transPoint[0];
+                nextNotFound = false;
+            }
+            if(!backLeft && !backRight) {
+                possibleOtherNode = false;
+                break;
+            }
+            if(distance == 300) {
+                possibleOtherNode = false;
+                break;
+            }
+        }
+    }
+    cout<<flush;
+    orderly.resize(whichNodeSorted);
 
     //has started from border?
     timeMeasure.functionMeasureStop();
-    return vector<Vec2i>();
+    return orderly;
 }
 vector<Vec2i> EdgeProcessing::ArrangeInOrderOld(vector<Vec2i>& notOrderly)
 {
@@ -555,9 +666,9 @@ void EdgeProcessing::FindEdgePixels()
     auto smallChunksSize = smallChunks.size();
     auto smallChunksOnEdgeSize = smallChunksOnEdge.size();
     chunksAccurateOnEdge = CenterRectsOnBorderAndRemoveSpots(smallChunksOnEdge);
-
+    ShowSelectedChunks(chunksAccurateOnEdge);
     vector<Vec2i> pointsNotSorted = GetCentresOfRectangles(chunksAccurateOnEdge);
-    SetFlagsOnSrcUchar(pointsNotSorted, borderCheckFg);
+
     //vector<Vec2i> pointsNotSorted = GetBlackPixBorderingWithWhite(chunksAccurateOnEdge);
 //    ShowLinesBetweenPoints(pointsNotSorted);
     vector<Vec2i> pointsOrderly = ArrangeInOrder(pointsNotSorted);
@@ -635,6 +746,20 @@ void EdgeProcessing::MakeBlack(Vec3b& p)
     p[1] = 0;
     p[2] = 0;
 }
+bool EdgeProcessing::InsideRect(Vec2i& p, Rect& rect)
+{
+    bool insideRect = true;
+    insideRect &= p[0] >= rect.y;
+    insideRect &= p[0] <= rect.y + rect.height;
+    insideRect &= p[1] >= rect.x;
+    insideRect &= p[1] <= rect.x + rect.width;
+    return insideRect;
+}
+bool EdgeProcessing::InsideRect(Vec2i& p, Mat& srcMat)
+{
+    Rect rect(0,0,srcMat.cols,srcMat.rows);
+    return InsideRect(p, rect);
+}
 Mat EdgeProcessing::CreateGhost()
 {
     Mat ghost(100,100,CV_8UC3);
@@ -661,7 +786,7 @@ vector<Vec2i> EdgeProcessing::GetCentresOfRectangles(list<Rect>& rects)
 void EdgeProcessing::SetFlagsOnSrcUchar(vector<Vec2i>& points, int flag)
 {
     for(auto& p : points) {
-        srcUchar.at<uchar>(p) |= flag;
+        srcUchar.at<uchar>(p[1],p[0]) |= flag;
     }
 }
 vector<Vec2i> EdgeProcessing::GetBlackPixBorderingWithWhite(vector<Rect>& rects)
