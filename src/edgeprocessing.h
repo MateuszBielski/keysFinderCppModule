@@ -16,7 +16,7 @@
 
 #define colorCheckFg 0b00000001
 #define borderCheckFg 0b00000100
-#define nodeSortedFg 1 >> 3
+#define nodeSortedFg 0b00001000
 #define blackFg 0b00000001
 #define whiteFg 0b00000011
 
