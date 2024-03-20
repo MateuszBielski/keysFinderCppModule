@@ -33,6 +33,10 @@ void EdgeProcessing::LoadParameters(inih::INIReader& r)
     try {
         shortSideDivider2 = r.Get<ushort>("section1", "shortSideDivider2");
     } catch(std::exception& e) {}
+    try {
+        changeDirectionThereshold = r.Get<ushort>("section1", "changeDirectionThereshold");
+    } catch(std::exception& e) {}
+    
 }
 void EdgeProcessing::LoadImageBW(string fileName)
 {
@@ -470,10 +474,11 @@ vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
     //transposed convention
     Vec2i direction = shortSideIsVertical ? Vec2i(0,1) : Vec2i(1,0);
     if(!isForward) direction *= -1;
-    
+
     srcUchar.at<uchar>(transPoint) |= nodeSortedFg;
     bool possibleOtherNode = true;
     int step = 1;
+    
     Vec2i pointToCheck, centerBreak, leftBreak, rightBreak;
     Rect sourceBorders(0,0,src.cols,src.rows);
     unsigned whichNodeSorted = 0;
@@ -483,25 +488,33 @@ vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
 
         int distance = 1;
         bool nextNotFound = true;
+
+        auto CheckPoint = [&, this](Vec2i& pointToCheck) {
+            uchar& pointVal= srcUchar.at<uchar>(pointToCheck);
+            if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
+                nextNotFound = false;
+                pointVal |= nodeSortedFg;
+                if(distance > changeDirectionThereshold) {
+                    Vec2i newDirection = pointToCheck - transPoint;
+                    Vec2i absDir(abs(newDirection[0]),abs(newDirection[1]));
+                    direction = absDir[0] > absDir[1] ? Vec2i(newDirection[0] / absDir[0], 0) : Vec2i(0, newDirection[1] / absDir[1]);
+                }
+                transPoint = pointToCheck;
+                distance = 0;
+            }
+        };
+
         while(nextNotFound) {
-            
+
             //In determined direction checking in distance 1 pix, 2 pix and so on...
 //        straight
             pointToCheck = transPoint + direction * step * distance;
 
-//            cout<<"\n"<<pointToCheck[1]<<", "<<pointToCheck[0];
-            if(!InsideRect(pointToCheck,sourceBorders)){
+            if(!InsideRect(pointToCheck,sourceBorders)) {
                 possibleOtherNode = false;
                 break;
             }
-                
-            uchar& pointValC = srcUchar.at<uchar>(pointToCheck);
-            if(pointValC & nodeFlag && !(pointValC & nodeSortedFg)) {
-                nextNotFound = false;
-                pointValC |= nodeSortedFg;
-                transPoint = pointToCheck;
-                distance = 0;
-            }
+            CheckPoint(pointToCheck);
             centerBreak = pointToCheck;
             //turn left
             Vec2i localLeft(-1 * direction[1],direction[0]);
@@ -513,16 +526,11 @@ vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
                     backLeft = false;
                     break;
                 }
-                uchar& pointVal = srcUchar.at<uchar>(pointToCheck);
-                if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
-                    nextNotFound = false;
-                    pointVal |= nodeSortedFg;
-                    distance = 0;
-                    transPoint = pointToCheck;
-                }
+                CheckPoint(pointToCheck);
             }
             //back and turn right
             Vec2i localRight = -1 * localLeft;
+
             bool backRight = true;
             for(int r = 1; r <= distance ; r++) {
                 pointToCheck = centerBreak + localRight * step * r;
@@ -531,13 +539,7 @@ vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
                     backRight = false;
                     break;
                 }
-                uchar& pointVal = srcUchar.at<uchar>(pointToCheck);
-                if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
-                    nextNotFound = false;
-                    pointVal|= nodeSortedFg;
-                    distance = 0;
-                    transPoint = pointToCheck;
-                }
+                CheckPoint(pointToCheck);
             }
             Vec2i backDir = -1 * direction;
             //again left and turn left
@@ -547,13 +549,7 @@ vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
                     if(!InsideRect(pointToCheck,sourceBorders)) {
                         break;
                     }
-                    uchar& pointVal = srcUchar.at<uchar>(pointToCheck);
-                    if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
-                        nextNotFound = false;
-                        pointVal |= nodeSortedFg;
-                        distance = 0;
-                        transPoint = pointToCheck;
-                    }
+                    CheckPoint(pointToCheck);
                 }
             }
             //again right and turn right
@@ -563,13 +559,7 @@ vector<Vec2i> EdgeProcessing::ArrangeInOrder(vector<Vec2i>& notOrderly)
                     if(!InsideRect(pointToCheck,sourceBorders)) {
                         break;
                     }
-                    uchar& pointVal = srcUchar.at<uchar>(pointToCheck);
-                    if(pointVal & nodeFlag && !(pointVal & nodeSortedFg)) {
-                        nextNotFound = false;
-                        pointVal |= nodeSortedFg;
-                        distance = 0;
-                        transPoint = pointToCheck;
-                    }
+                    CheckPoint(pointToCheck);
                 }
             }
             distance++;

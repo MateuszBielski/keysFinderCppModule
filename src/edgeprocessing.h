@@ -33,6 +33,7 @@ private:
     unsigned edgeDetectInitialRadius = 10;
     ushort shortSideDivider1 = 3;
     ushort shortSideDivider2 = 3;
+    ushort changeDirectionThereshold = 30;
     uchar minWhiteLevel = 255;
     uchar maxBalckLevel = 0;
     float blackWhiteRatioMax = 0.25;
