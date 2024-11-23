@@ -1,5 +1,6 @@
 Debug*/
 Release/
+config.ini.backup*
 *mk
 *txt
 !CMakeLists.txt
